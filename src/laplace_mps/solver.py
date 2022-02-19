@@ -52,6 +52,26 @@ def get_polynomial_as_tt(coeffs, L):
     return tm.TensorTrain(tensors)
 
 
+def get_trig_function_as_tt(coeffs, L):
+    a,b,nu = coeffs
+    s,c = np.sin(nu * np.pi), np.cos(nu * np.pi)
+    C_0 = np.array([[c,-s],[s,c]])
+    C_0 = np.array([a,b]) @ C_0
+
+    C_tensors = [C_0.reshape([1,1,-1])]
+    for l in range(1, L+1):
+        C_l = []
+        for i in range(2):
+            phase = 0.5**l * np.pi * nu * (2*i-1)
+            s, c = np.sin(phase), np.cos(phase)
+            C_l.append(np.array([[c,-s],[s,c]]))
+        C_l = np.stack(C_l, axis=1)
+        C_tensors.append(C_l)
+    C_final = np.array([[c, 0],[0,s]])[...,None]
+    C_tensors.append(C_final)
+    return tm.TensorTrain(C_tensors).squeeze()
+
+
 def evaluate_nodal_basis(tt: tm.TensorTrain, s: np.array):
     s = np.array(s)
     assert tt[-1].shape[1] == 2, "Tensor to be evaluated must be in nodal-basis, i.e. have 2 basis elements"
@@ -112,14 +132,21 @@ def get_laplace_matrix_as_tt(L):
     A = Mp.copy().transpose() @ Mp
     return A.reapprox(rel_error=1e-16)
 
+def get_preconditioned_laplace_as_tt(L):
+    C = getBPXPreconditioner(L)
+    Qp = get_derivative_matrix_as_tt(L) @ C
+    B = Qp.copy().transpose() @ Qp
+    return B.reapprox(rel_error=1e-16)
+
 
 def get_level_mapping_matrix_as_tt(L,l):
     M = _get_refinement_tensor()
-    A = np.zeros([2, 2, 2])
-    A[0, :, 0] = [0.5, 1]
-    A[0, :, 1] = [0, 0.5]
-    A[1, :, 0] = [0.5, 0]
-    A[1, :, 1] = [1, 0.5]
+    A = np.zeros([2, 2, 1, 2])
+    A[0, :, 0, 0] = [0.5, 1]
+    A[0, :, 0, 1] = [0, 0.5]
+    A[1, :, 0, 0] = [0.5, 0]
+    A[1, :, 0, 1] = [1, 0.5]
+    A /= np.sqrt(2)
     start = np.array([1, 0])[None, None, :]
     end = np.array([1, 0])[:, None, None]
     return tm.TensorTrain([start] + [M] * l + [A] * (L - l) + [end]).squeeze()
@@ -127,10 +154,10 @@ def get_level_mapping_matrix_as_tt(L,l):
 def getBPXPreconditioner(L):
     P0 = get_level_mapping_matrix_as_tt(L, 0)
     C = P0 @ P0.copy().transpose()
-    for l in range(1,L):
+    for l in range(1,L+1):
         P = get_level_mapping_matrix_as_tt(L, l)
-        C = C + 2**(-l) * P @ P.copy().transpose()
-        C.reapprox(rel_error=1e-16)
+        PP = P @ P.copy().transpose()
+        C = (C + 2**(-l) * PP).reapprox(ranks_new=8)
     return C
 
 def solve_PDE_1D(f, **solver_options):
@@ -139,12 +166,26 @@ def solve_PDE_1D(f, **solver_options):
     A = get_laplace_matrix_as_tt(L)
     return solve_with_grad_descent(A, g, **solver_options)
 
-def solve_with_grad_descent(A, b, n_steps=200, lr=1.0, max_rank=20, print_steps=False, recalc_residual_every_n=100):
+def solve_PDE_1D_with_preconditioner(f, **solver_options):
+    L = len(f) - 1
+    g = (get_rhs_matrix_as_tt(L) @ f).squeeze()
+    A = get_laplace_matrix_as_tt(L)
+
+    C = getBPXPreconditioner(L)
+    B = (C @ A @ C).reapprox(rel_error=1e-8)
+    b = (C @ g).reapprox(rel_error=1e-8)
+
+    v = solve_with_grad_descent(B, b, **solver_options)
+    u = (C @ v).reapprox(rel_error=1e-16)
+    return u
+
+
+def solve_with_grad_descent(A, b, n_steps=200, lr=1.0, max_rank=20, print_steps=False, recalc_residual_every_n=10):
     x = tm.zeros(b.mode_sizes)
     for n in range(n_steps):
         if n%recalc_residual_every_n == 0:
-            r = b - A @ x
-        Ar = A @ r
+            r = (b - A @ x).reapprox(ranks_new=max_rank)
+        Ar = (A @ r).reapprox(ranks_new=max_rank)
         r2 = float((r @ r).eval().flatten())
         gamma = lr * r2 / float((r @ Ar).eval().flatten())
 
@@ -152,13 +193,13 @@ def solve_with_grad_descent(A, b, n_steps=200, lr=1.0, max_rank=20, print_steps=
         r = r - gamma * Ar
         x.reapprox(ranks_new=max_rank)
         r.reapprox(ranks_new=max_rank)
-        if print_steps and (n%50 == 0):
+        if print_steps and (n%5 == 0):
             print(f"Step {n:4d}: ||r||² = {r2:.2e}, gamma = {gamma: .2e}")
     return x
 
-#
-# if __name__ == '__main__':
-#     C = getBPXPreconditioner(5)
+
+if __name__ == '__main__':
+    C = getBPXPreconditioner(5)
 
 
 

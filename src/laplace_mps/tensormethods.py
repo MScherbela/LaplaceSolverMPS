@@ -198,13 +198,22 @@ class TensorTrain:
             self.tensors[k] = U.reshape(U.shape[:1] + tuple(s) + U.shape[-1:])
         return self
 
-    def eval(self, squeeze=True):
+    def eval(self, squeeze=True, reshape=None):
         A = self.tensors[0]
         for U in self.tensors[1:]:
             A = np.tensordot(A, U, (-1, 0))
         if squeeze:
             A = A.squeeze()
-        return A
+        if reshape == 'vector':
+            return A.flatten()
+        elif reshape == 'matrix':
+            L = len(self)
+            row_indices = list(range(0,2*L,2))
+            col_indices = list(range(1,2*L,2))
+            A = A.transpose(row_indices + col_indices)
+            return A.reshape([np.prod(A.shape[:L]), -1])
+        else:
+            return A
 
     def squeeze(self):
         new_tensors = [self.tensors[0]]

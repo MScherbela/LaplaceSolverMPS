@@ -6,7 +6,7 @@ import matplotlib.pyplot as plt
 from laplace_mps.utils import draw_vertical_grid
 import time
 
-L = 7
+L = 12
 h = 2**-L
 
 
@@ -16,8 +16,7 @@ Mp = solver.get_derivative_matrix_as_tt(L)
 A = solver.get_laplace_matrix_as_tt(L)
 
 
-
-poly_f = Polynomial([2,-3,6,-6])
+poly_f = Polynomial([2,-3,6,-20])
 # poly_f = Polynomial([1,-2,3])
 # poly_f = Polynomial([1,3])
 poly_u = -poly_f.integ(1)
@@ -36,7 +35,8 @@ lhs = A @ u_right
 rhs = rhs_matrix @ f
 
 t0 = time.time()
-u_solved = solver.solve_PDE_1D(f, max_rank=20, print_steps=True, n_steps=500, lr=0.5)
+print("Starting solver...")
+u_solved = solver.solve_PDE_1D_with_preconditioner(f, max_rank=20, print_steps=True, n_steps=50, lr=0.5)
 u_solved = solver.hat_to_nodal_basis(u_solved)
 t1 = time.time()
 print(t1-t0)
