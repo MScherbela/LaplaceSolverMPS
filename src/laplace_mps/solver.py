@@ -27,10 +27,10 @@ def _get_gram_matrix_legendre():
     return np.diag([2,2/3])
 
 def get_rhs_matrix_as_tt(L):
-    M = get_overlap_matrix_as_tt(L)
-    R = M.transpose()
+    R = get_overlap_matrix_as_tt(L).transpose()
 
-    G = _get_gram_matrix_legendre() / 2
+    G = np.array([[1,1],[-1,1]]) / 2 # convert from left/right-basis to Legendre (P0, P1) basis
+    G = _get_gram_matrix_legendre() @ G / 2
     R.tensors[-1] = (R.tensors[-1].squeeze(-1) @ G)[...,None]
     return R
 
@@ -44,7 +44,7 @@ def get_polynomial_as_tt(coeffs, L):
     poly_values_right = np.ones(len(coeffs))
 
     U_first = legendre_coeffs[None,:]
-    U_last = np.array([poly_values_right + poly_value_left, poly_values_right - poly_value_left]).T[...,None] / 2
+    U_last = np.array([poly_value_left, poly_values_right]).T[...,None]
 
     tensors = [U_l for _ in range(L)]
     tensors[0] = np.tensordot(U_first, tensors[0], axes=[-1,0])
@@ -67,7 +67,7 @@ def get_trig_function_as_tt(coeffs, L):
             C_l.append(np.array([[c,-s],[s,c]]))
         C_l = np.stack(C_l, axis=1)
         C_tensors.append(C_l)
-    C_final = np.array([[c, 0],[0,s]])[...,None]
+    C_final = np.array([[c, c],[-s,s]])[...,None]
     C_tensors.append(C_final)
     return tm.TensorTrain(C_tensors).squeeze()
 
@@ -76,24 +76,17 @@ def evaluate_nodal_basis(tt: tm.TensorTrain, s: np.array):
     s = np.array(s)
     assert tt[-1].shape[1] == 2, "Tensor to be evaluated must be in nodal-basis, i.e. have 2 basis elements"
     output = tm.TensorTrain(tt)
-    final_factor = np.array([np.ones_like(s), s])
+    final_factor = np.array([(1-s)/2, (1+s)/2])
     output.tensors[-1] = (output.tensors[-1].squeeze(-1) @ final_factor)[..., None]
     return output
 
-def evaluate_nodal_basis(tt: tm.TensorTrain, s: np.array):
-    s = np.array(s)
-    assert tt[-1].shape[1] == 2, "Tensor to be evaluated must be in nodal-basis, i.e. have 2 basis elements"
-    output = tm.TensorTrain(tt)
-    final_factor = np.array([np.ones_like(s), s])
-    output.tensors[-1] = (output.tensors[-1].squeeze(-1) @ final_factor)[..., None]
-    return output
 
-def hat_to_nodal_basis(tt: tm.TensorTrain):
-    L = len(tt)
-    M = get_overlap_matrix_as_tt(L)
-    tt = tt.copy()
-    tt.tensors.append(np.eye(2).reshape([1,2,2,1]))
-    return M @ tt
+# def hat_to_nodal_basis(tt: tm.TensorTrain):
+#     L = len(tt)
+#     M = get_overlap_matrix_as_tt(L)
+#     tt = tt.copy()
+#     tt.tensors.append(np.eye(2).reshape([1,2,2,1]))
+#     return M @ tt
 
 
 

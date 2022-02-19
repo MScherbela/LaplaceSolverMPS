@@ -34,6 +34,21 @@ def get_f_from_u(poly: np.polynomial.Polynomial, trig: List[TrigFunction], L):
     f = trig0_tt * poly2_tt + 2 * trig1_tt * poly1_tt + trig2_tt * poly0_tt
     return -f.reapprox(rel_error=1e-16)
 
+def evaluate_f_from_u(poly: np.polynomial.Polynomial, trig: List[TrigFunction], x):
+    trig0_eval = np.zeros_like(x)
+    trig1_eval = np.zeros_like(x)
+    trig2_eval = np.zeros_like(x)
+    for t in trig:
+        trig0_eval += t.eval(x)
+        trig1_eval += t.derive().eval(x)
+        trig2_eval += t.derive().derive().eval(x)
+
+    poly0_eval = poly(x)
+    poly1_eval = poly.deriv(1)(x)
+    poly2_eval = poly.deriv(2)(x)
+    f = poly0_eval * trig2_eval + 2 * poly1_eval * trig1_eval + poly2_eval * trig0_eval
+    return -f
+
 def eval_function(poly, trig_functions, x):
     trig = np.zeros_like(x)
     for t in trig_functions:
@@ -48,41 +63,48 @@ def get_u_function_as_tt(poly, trig: List[TrigFunction], L):
     return u_tt#.reapprox(rel_error=1e-16)
 
 
-L = 5
+L = 14
 h = 2**(-L)
 
 # poly,trig = build_u_with_correct_boundary_conditions([0,1,-2], [(0.1,0.1,2.5), (0.1, 0.2, 34.5)])
-poly,trig = build_u_with_correct_boundary_conditions([0,1,-2], [(1.0, 0.0, 2.0)])
+poly,trig = build_u_with_correct_boundary_conditions([0,1,-2, 3], [(1.0, 0.0, 2.0), (1.0, 1.0, 4)])
+# poly,trig = build_u_with_correct_boundary_conditions([0,1,-2], [(1.0, 0.0, 0.0)])
 
-# f = get_f_from_u(poly, trig, L)
+f = get_f_from_u(poly, trig, L)
 
 u_tt = get_u_function_as_tt(poly, trig, L)
-# u_solved = solve_PDE_1D_with_preconditioner(f, n_steps=20, max_rank=30)
+u_solved = solve_PDE_1D_with_preconditioner(f, n_steps=200, max_rank=30, print_steps=True)
 
 
-s_values = np.array([-1.0])
+
+s_values = np.array([1.0])
 x_right = np.arange(1, (2 ** L) + 1) * h
 x_values = (x_right[:, None] + (s_values - 1) / 2 * h).flatten()
 
-u_dense_eval = eval_function(poly, trig, x_right)
+u_dense_eval = eval_function(poly, trig, x_values)
 u_tt_eval = evaluate_nodal_basis(u_tt, s_values).eval(reshape='vector')
-# u_solved_eval = u_solved.eval(reshape='vector')
-# f_eval = evaluate_nodal_basis(f, s_values).eval(reshape='vector')
+u_solved_eval = u_solved.eval(reshape='vector')
+
+f_dense_eval = evaluate_f_from_u(poly, trig, x_values)
+f_eval = evaluate_nodal_basis(f, s_values).eval(reshape='vector')
 
 plt.close("all")
 fig, (ax_u, ax_f, ax_du) = plt.subplots(3,1, figsize=(14,7), sharex=True)
-# ax_u.plot(x_right, u_solved_eval, label="Solution of PDE")
-ax_u.plot(x_right, u_dense_eval, label="Dense evaluation (orig. function)", ls='--')
-ax_u.plot(x_right, u_tt_eval, label="Orig. function converted to TT", ls='--')
+ax_u.plot(x_right, u_solved_eval, label="Solution of PDE")
+ax_u.plot(x_values, u_dense_eval, label="Dense evaluation (orig. function)", ls='--')
+ax_u.plot(x_values, u_tt_eval, label="Orig. function converted to TT", ls='--')
 ax_u.set_ylabel("u")
 
-ax_du.plot(x_right, u_tt_eval - u_dense_eval, label="Residual of original TT")
-# ax_du.plot(x_right, u_solved_eval - u_dense_eval, label="Residual of PDE solution")
+
+
+ax_du.plot(x_values, u_tt_eval - u_dense_eval, label="Residual of original TT")
+ax_du.plot(x_right, u_solved_eval - u_dense_eval, label="Residual of PDE solution")
 ax_du.set_ylabel("$\Delta u$")
-
-
-
-# ax_f.plot(x_right, f_eval, label="f (TT)")
+#
+#
+#
+ax_f.plot(x_values, f_eval, label="f (TT)")
+ax_f.plot(x_values, f_dense_eval, label="f (directly)", ls='--')
 ax_f.set_ylabel("f")
 
 
@@ -90,7 +112,7 @@ ax_f.set_ylabel("f")
 for ax in [ax_u, ax_f, ax_du]:
     ax.legend()
     ax.grid(alpha=0.3, axis='y')
-    draw_vertical_grid(5, ax)
+    draw_vertical_grid(L, ax)
 
 
 
