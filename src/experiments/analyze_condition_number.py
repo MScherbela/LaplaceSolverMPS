@@ -1,4 +1,4 @@
-from laplace_mps.solver import getBPXPreconditioner, get_laplace_matrix_as_tt, get_preconditioned_laplace_as_tt
+from laplace_mps.solver import get_BPX_preconditioner_naive, get_laplace_matrix_as_tt, get_preconditioned_laplace_as_tt
 import numpy as np
 import matplotlib.pyplot as plt
 

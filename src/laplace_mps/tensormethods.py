@@ -229,3 +229,12 @@ class TensorTrain:
                 new_tensors.append(U)
         self.tensors = new_tensors
         return self
+
+    def expand_dims(self, axis=-1):
+        for k, U in enumerate(self.tensors):
+            if axis < 0:
+                pos = len(U.shape) - 1 + axis
+            else:
+                pos = 1 + axis
+            self.tensors[k] = np.expand_dims(U, pos)
+        return self

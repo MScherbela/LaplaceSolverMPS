@@ -1,3 +1,4 @@
+import matplotlib.pyplot as plt
 import numpy
 import numpy as np
 import laplace_mps.tensormethods as tm
@@ -26,16 +27,31 @@ def _polynomial_to_legendre(coeffs):
 def _get_gram_matrix_legendre():
     return np.diag([2,2/3])
 
-def get_rhs_matrix_as_tt(L):
+def get_rhs_matrix_as_tt(L, basis="corner"):
     R = get_overlap_matrix_as_tt(L).transpose()
 
-    G = np.array([[1,1],[-1,1]]) / 2 # convert from left/right-basis to Legendre (P0, P1) basis
-    G = _get_gram_matrix_legendre() @ G / 2
+    G = _get_gram_matrix_legendre() / 2
+    if basis == 'corner':
+        G = G @  np.array([[1,1],[-1,1]]) # convert from left/right-basis to Legendre (P0, P1) basis
+    elif basis == "legendre":
+        pass
+    else:
+        raise NotImplementedError(f"Unknown basis {basis}")
+
     R.tensors[-1] = (R.tensors[-1].squeeze(-1) @ G)[...,None]
     return R
 
+def to_legendre_basis(t: tm.TensorTrain):
+    t = t.copy()
+    U = np.array([[1, -1], [1, 1]]) / 2  # convert from left/right-basis to Legendre (P0, P1) basis
+    t.tensors[-1] = (t.tensors[-1].squeeze(-1) @ U)[...,None]
+    return t
+
 
 def get_polynomial_as_tt(coeffs, L):
+    """
+    coeffs are the polynomial coeffs, starting with the x^0 coeff
+    """
     legendre_coeffs = numpy.polynomial.Polynomial(coeffs).convert(kind=numpy.polynomial.legendre.Legendre, domain=[0,1]).coef
     U_l = _get_legendre_zoom_in_tensor(len(coeffs)-1)
 
@@ -72,11 +88,17 @@ def get_trig_function_as_tt(coeffs, L):
     return tm.TensorTrain(C_tensors).squeeze()
 
 
-def evaluate_nodal_basis(tt: tm.TensorTrain, s: np.array):
+def evaluate_nodal_basis(tt: tm.TensorTrain, s: np.array, basis='corner'):
     s = np.array(s)
     assert tt[-1].shape[1] == 2, "Tensor to be evaluated must be in nodal-basis, i.e. have 2 basis elements"
-    output = tm.TensorTrain(tt)
-    final_factor = np.array([(1-s)/2, (1+s)/2])
+    output = tt.copy()
+    if basis == 'corner':
+        final_factor = np.array([(1-s)/2, (1+s)/2])
+    elif basis == 'legendre':
+        final_factor = np.array([np.ones_like(s), 2*s - 1])
+    else:
+        raise NotImplementedError(f"Unknown basis {basis}")
+
     output.tensors[-1] = (output.tensors[-1].squeeze(-1) @ final_factor)[..., None]
     return output
 
@@ -126,7 +148,7 @@ def get_laplace_matrix_as_tt(L):
     return A.reapprox(rel_error=1e-16)
 
 def get_preconditioned_laplace_as_tt(L):
-    C = getBPXPreconditioner(L)
+    C = get_bpx_preconditioner(L)
     Qp = get_derivative_matrix_as_tt(L) @ C
     B = Qp.copy().transpose() @ Qp
     return B.reapprox(rel_error=1e-16)
@@ -144,7 +166,7 @@ def get_level_mapping_matrix_as_tt(L,l):
     end = np.array([1, 0])[:, None, None]
     return tm.TensorTrain([start] + [M] * l + [A] * (L - l) + [end]).squeeze()
 
-def getBPXPreconditioner(L):
+def get_BPX_preconditioner_naive(L):
     P0 = get_level_mapping_matrix_as_tt(L, 0)
     C = P0 @ P0.copy().transpose()
     for l in range(1,L+1):
@@ -157,29 +179,32 @@ def solve_PDE_1D(f, **solver_options):
     L = len(f) - 1
     g = (get_rhs_matrix_as_tt(L) @ f).squeeze()
     A = get_laplace_matrix_as_tt(L)
-    return solve_with_grad_descent(A, g, **solver_options)
+    u, r2 = solve_with_grad_descent(A, g, **solver_options)
+    return u, r2
 
 def solve_PDE_1D_with_preconditioner(f, **solver_options):
     L = len(f) - 1
     g = (get_rhs_matrix_as_tt(L) @ f).squeeze()
     A = get_laplace_matrix_as_tt(L)
 
-    C = getBPXPreconditioner(L)
-    B = (C @ A @ C).reapprox(rel_error=1e-8)
-    b = (C @ g).reapprox(rel_error=1e-8)
+    C = get_bpx_preconditioner(L)
+    B = (C @ A @ C).reapprox(rel_error=1e-14)
+    b = (C @ g).reapprox(rel_error=1e-14)
 
-    v = solve_with_grad_descent(B, b, **solver_options)
+    v, r2 = solve_with_grad_descent(B, b, **solver_options)
     u = (C @ v).reapprox(rel_error=1e-16)
-    return u
+    return u, r2
 
 
-def solve_with_grad_descent(A, b, n_steps=200, lr=1.0, max_rank=20, print_steps=False, recalc_residual_every_n=10):
+def solve_with_grad_descent(A, b, n_steps_max=200, lr=1.0, max_rank=20, print_steps=False, recalc_residual_every_n=10, r2_accuracy=None):
     x = tm.zeros(b.mode_sizes)
-    for n in range(n_steps):
+    for n in range(n_steps_max):
         if n%recalc_residual_every_n == 0:
             r = (b - A @ x).reapprox(ranks_new=max_rank)
         Ar = (A @ r).reapprox(ranks_new=max_rank)
         r2 = float((r @ r).eval().flatten())
+        if r2_accuracy and (r2 <= r2_accuracy):
+            break
         gamma = lr * r2 / float((r @ Ar).eval().flatten())
 
         x = x + gamma * r
@@ -188,11 +213,81 @@ def solve_with_grad_descent(A, b, n_steps=200, lr=1.0, max_rank=20, print_steps=
         r.reapprox(ranks_new=max_rank)
         if print_steps and (n%5 == 0):
             print(f"Step {n:4d}: ||r||² = {r2:.2e}, gamma = {gamma: .2e}")
-    return x
+    r = (b - A @ x).reapprox(ranks_new=max_rank)
+    r2 = float((r @ r).eval().flatten())
+    return x, r2
+
+def _get_bpx_factors():
+    U = np.zeros([4, 2, 2, 2])
+    U[0,0,0,0] = 1
+    U[0,1,0,0] = -1
+    U[1,0,1,0] = -1
+    U[0,1,1,0] = 1
+    U[2,1,0,1] = 1
+    U[3,0,0,1] = -1
+    U[2,1,0,1] = 1
+    U[3,0,0,1] = -1
+    U[0,0,1,1] = 1
+    U[0,1,1,1] = -1
+    
+    V = np.zeros([4, 2, 2, 4])
+    V[:,0,0,0] = 1/4
+    V[0,1,0,0] = 1/2
+    V[2,1,0,0] = 1/2
+    V[0,0,1,0] = 1/2
+    V[1,0,1,0] = 1/2
+    V[0,1,1,0] = 1
+    V[1,0,0,1] = 1/2
+    V[3,0,0,1] = 1/2
+    V[:,1,0,1] = 1/4
+    V[0,1,1,1] = 1/2
+    V[1,1,1,1] = 1/2
+    V[1,0,1,1] = 1
+    V[2,0,0,2] = 1/2
+    V[3,0,0,2] = 1/2
+    V[2,1,0,2] = 1
+    V[0,1,1,2] = 1/2
+    V[2,1,1,2] = 1/2
+    V[:,0,1,2] = 1/4
+    V[2,1,0,3] = 1/2
+    V[3,1,0,3] = 1/2
+    V[3,0,0,3] = 1
+    V[1,0,1,3] = 1/2
+    V[3,0,1,3] = 1/2
+    V[:,1,1,3] = 1/4
+    
+    W = np.zeros([4, 2, 2, 4])
+    W[0,0,0,0] = 1
+    W[0,1,1,0] = 1
+    W[0,1,0,1] = 1
+    W[1,0,1,1] = 1
+    W[2,1,0,2] = 1
+    W[0,0,1,2] = 1
+    W[3,0,0,3] = 1
+    W[0,1,1,3] = 1
+    
+    Y = np.zeros([2, 2, 2, 2])
+    Y[:,:,0,0] = 1/4
+    Y[0,:,1,0] = 1/2
+    Y[1,:,0,1] = 1/2
+    Y[:,:,1,1] = 1/4
+    
+    return W,U,V,Y
+
+def get_bpx_preconditioner(L):
+    W, _, V, _ = _get_bpx_factors()
+    W *= 0.5
+    V *= 0.5
+    X = np.zeros([8,2,2,8])
+    X[:4,:,:,:4] = W
+    X[:4,:,:,4:] = W
+    X[4:,:,:,4:] = V
+
+    C = np.array([1,0,0,0, 1,0,0,0], dtype=float).reshape([1,1,1,8])
+    Z = np.array([0,0,0,0, 1,0,0,0], dtype=float).reshape([8,1,1,1])
+    return tm.TensorTrain([C] + [X for _ in range(L)] + [Z]).squeeze()
 
 
-if __name__ == '__main__':
-    C = getBPXPreconditioner(5)
 
 
 
