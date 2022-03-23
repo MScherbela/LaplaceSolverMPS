@@ -198,6 +198,19 @@ class TensorTrain:
             self.tensors[k] = U.reshape(U.shape[:1] + tuple(s) + U.shape[-1:])
         return self
 
+    def reshape_mode_indices(self, mode_shapes: List[List[int]]):
+        if isinstance(mode_shapes[0], int):
+            mode_shapes = [mode_shapes] * len(self)
+        for i,U in enumerate(self.tensors):
+            self.tensors[i] = U.reshape((U.shape[0],) + tuple(mode_shapes[i]) + (U.shape[-1],))
+        return self
+
+    def evalm(self):
+        return self.eval(reshape='matrix')
+
+    def evalv(self):
+        return self.eval(reshape='vector')
+
     def eval(self, squeeze=True, reshape=None):
         A = self.tensors[0]
         for U in self.tensors[1:]:
@@ -232,9 +245,24 @@ class TensorTrain:
 
     def expand_dims(self, axis=-1):
         for k, U in enumerate(self.tensors):
-            if axis < 0:
-                pos = len(U.shape) - 1 + axis
+            if isinstance(axis, int):
+                pos = axis - 1 if axis < 0 else axis + 1
             else:
-                pos = 1 + axis
+                pos = [a - 1 if a < 0 else a + 1 for a in axis]
             self.tensors[k] = np.expand_dims(U, pos)
         return self
+
+    def norm_squared(self, orthogonalize=True):
+        A = self.copy()
+        A.left_orthogonalize()
+        return np.sum(A[0]**2)
+
+if __name__ == '__main__':
+    np.random.seed(0)
+    A = np.random.normal(size=[2,2,2,2,2])
+    A = TensorTrain.ttsvd(A, ranks=[2]*4)
+    norm_direct = (A @ A).squeeze().eval()
+    A_orth = A.left_orthogonalize()
+
+    print(norm_direct)
+

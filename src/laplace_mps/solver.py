@@ -28,7 +28,7 @@ def _get_gram_matrix_legendre():
     return np.diag([2,2/3])
 
 def get_rhs_matrix_as_tt(L, basis="corner"):
-    R = get_overlap_matrix_as_tt(L).transpose()
+    R = get_overlap_matrix_as_tt(L).transpose() * 0.5
 
     G = _get_gram_matrix_legendre() / 2
     if basis == 'corner':
@@ -40,6 +40,17 @@ def get_rhs_matrix_as_tt(L, basis="corner"):
 
     R.tensors[-1] = (R.tensors[-1].squeeze(-1) @ G)[...,None]
     return R
+
+def get_rhs_matrix_as_tt_2D(L):
+    R = get_rhs_matrix_as_tt(L).squeeze()
+    Rx = R.copy().expand_dims([1,3])
+    Rx.tensors[-1] = Rx.tensors[-1].squeeze(axis=-2)
+    Ry = R.copy().expand_dims([0,2])
+    Ry.tensors[-1] = Ry.tensors[-1].squeeze(axis=-2)
+    R = (Rx * Ry).reshape_mode_indices([[4,4]]*L + [[2,2]]).reapprox(rel_error=1e-15)
+    R.tensors[-1] = R.tensors[-1].reshape([-1, 4, 1])
+    return R
+
 
 def to_legendre_basis(t: tm.TensorTrain):
     t = t.copy()
@@ -90,26 +101,27 @@ def get_trig_function_as_tt(coeffs, L):
 
 def evaluate_nodal_basis(tt: tm.TensorTrain, s: np.array, basis='corner'):
     s = np.array(s)
-    assert tt[-1].shape[1] == 2, "Tensor to be evaluated must be in nodal-basis, i.e. have 2 basis elements"
     output = tt.copy()
-    if basis == 'corner':
-        final_factor = np.array([(1-s)/2, (1+s)/2])
-    elif basis == 'legendre':
-        final_factor = np.array([np.ones_like(s), 2*s - 1])
-    else:
-        raise NotImplementedError(f"Unknown basis {basis}")
+    if s.ndim == 1:
+        # Approximation of 1D function
+        assert tt[-1].shape[1] == 2, "Tensor to be evaluated must be in nodal-basis, i.e. have 2 basis elements"
+        if basis == 'corner':
+            final_factor = np.array([(1-s)/2, (1+s)/2])
+        elif basis == 'legendre':
+            final_factor = np.array([np.ones_like(s), 2*s - 1])
+        else:
+            raise NotImplementedError(f"Unknown basis {basis}")
+        output.tensors[-1] = (output.tensors[-1].squeeze(-1) @ final_factor)[..., None]
 
-    output.tensors[-1] = (output.tensors[-1].squeeze(-1) @ final_factor)[..., None]
+    elif (s.ndim == 2) and s.shape[0] == 2:
+        # Approximation of 2D function
+        assert tt[-1].shape[1:3] == (2,2)
+        if basis == 'corner':
+            final_factor = np.array([(1-s[0])*(1-s[1]), (1-s[0])*(1+s[1]), (1+s[0])*(1-s[1]), (1+s[0])*(1+s[1])]) / 4
+            output.tensors[-1] = (output.tensors[-1].reshape([-1, 4]) @ final_factor)[..., None]
+        else:
+            raise NotImplementedError(f"Unknown basis {basis}")
     return output
-
-
-# def hat_to_nodal_basis(tt: tm.TensorTrain):
-#     L = len(tt)
-#     M = get_overlap_matrix_as_tt(L)
-#     tt = tt.copy()
-#     tt.tensors.append(np.eye(2).reshape([1,2,2,1]))
-#     return M @ tt
-
 
 
 def _get_refinement_tensor():
@@ -134,7 +146,7 @@ def get_overlap_matrix_as_tt(L):
 
 def get_derivative_matrix_as_tt(L):
     """Returns a tensor-train representing the matris M' which computes the first derivatives of a function in a hat-like basis."""
-    M = _get_refinement_tensor() * 2
+    M = _get_refinement_tensor() * np.sqrt(2)
     M_first = np.array([1, 0]).reshape([1, 2])
     M_last = np.array([1,-1]).reshape(2, 1)
     tensors = [M for _ in range(L)]
@@ -145,14 +157,10 @@ def get_derivative_matrix_as_tt(L):
 def get_laplace_matrix_as_tt(L):
     Mp = get_derivative_matrix_as_tt(L)
     A = Mp.copy().transpose() @ Mp
-    return A.reapprox(rel_error=1e-16)
-
-def get_preconditioned_laplace_as_tt(L):
-    C = get_bpx_preconditioner(L)
-    Qp = get_derivative_matrix_as_tt(L) @ C
-    B = Qp.copy().transpose() @ Qp
-    return B.reapprox(rel_error=1e-16)
-
+    A.reapprox(rel_error=1e-16)
+    # for i in range(L):
+    #     A.tensors[i] *= 2
+    return A
 
 def get_level_mapping_matrix_as_tt(L,l):
     M = _get_refinement_tensor()
@@ -179,6 +187,20 @@ def solve_PDE_1D(f, **solver_options):
     L = len(f) - 1
     g = (get_rhs_matrix_as_tt(L) @ f).squeeze()
     A = get_laplace_matrix_as_tt(L)
+    for i in range(len(A)):
+        g.tensors[i] /= 2
+
+    u, r2 = solve_with_grad_descent(A, g, **solver_options)
+    return u, r2
+
+def solve_PDE_2D(f: tm.TensorTrain, **solver_options):
+    f = f.copy().flatten_mode_indices()
+    L = len(f) - 1
+    g = (get_rhs_matrix_as_tt_2D(L) @ f).squeeze()
+    A = build_laplace_matrix_2D(L)
+    for i in range(len(A)):
+        g.tensors[i] /= 4
+
     u, r2 = solve_with_grad_descent(A, g, **solver_options)
     return u, r2
 
@@ -186,17 +208,19 @@ def solve_PDE_1D_with_preconditioner(f, **solver_options):
     L = len(f) - 1
     g = (get_rhs_matrix_as_tt(L) @ f).squeeze()
     A = get_laplace_matrix_as_tt(L)
+    for i in range(len(A)):
+        g.tensors[i] /= 2
 
     C = get_bpx_preconditioner(L)
-    B = (C @ A @ C).reapprox(rel_error=1e-14)
-    b = (C @ g).reapprox(rel_error=1e-14)
+    B = (C @ A @ C).reapprox(rel_error=1e-12)
+    b = (C @ g).reapprox(rel_error=1e-12)
 
     v, r2 = solve_with_grad_descent(B, b, **solver_options)
     u = (C @ v).reapprox(rel_error=1e-16)
     return u, r2
 
 
-def solve_with_grad_descent(A, b, n_steps_max=200, lr=1.0, max_rank=20, print_steps=False, recalc_residual_every_n=10, r2_accuracy=None):
+def solve_with_grad_descent(A, b, n_steps_max=200, lr=0.8, max_rank=20, print_steps=False, recalc_residual_every_n=10, r2_accuracy=None):
     x = tm.zeros(b.mode_sizes)
     for n in range(n_steps_max):
         if n%recalc_residual_every_n == 0:
@@ -212,7 +236,7 @@ def solve_with_grad_descent(A, b, n_steps_max=200, lr=1.0, max_rank=20, print_st
         x.reapprox(ranks_new=max_rank)
         r.reapprox(ranks_new=max_rank)
         if print_steps and (n%5 == 0):
-            print(f"Step {n:4d}: ||r||² = {r2:.2e}, gamma = {gamma: .2e}")
+            print(f"Step {n:4d}: ||r||² = {r2:.2e} / {r2_accuracy:.2e}, gamma = {gamma: .2e}")
     r = (b - A @ x).reapprox(ranks_new=max_rank)
     r2 = float((r @ r).eval().flatten())
     return x, r2
@@ -288,10 +312,30 @@ def get_bpx_preconditioner(L):
     return tm.TensorTrain([C] + [X for _ in range(L)] + [Z]).squeeze()
 
 
+def build_mass_matrix_legendre(L):
+    factors = [(np.eye(2)/2)[None, ..., None] for _ in range(L)]
+    factors += [_get_gram_matrix_legendre()[None, ..., None] / 2]
+    return tm.TensorTrain(factors)
 
+def build_mass_matrix_in_nodal_basis(L):
+    M = get_overlap_matrix_as_tt(L)
+    M.tensors[-1] = M.tensors[-1][...,None,:]
+    M_legendre = build_mass_matrix_legendre(L)
+    return (M.copy().transpose() @ M_legendre @ M).squeeze().reapprox()
 
+def build_2D_mass_matrix(L):
+    mass = build_mass_matrix_in_nodal_basis(L)
+    mx = mass.copy().expand_dims([1, 3])
+    my = mass.copy().expand_dims([0, 2])
+    mass = mx * my
+    mass.reshape_mode_indices([4,4])
+    return mass
 
-
-
-
-
+def build_laplace_matrix_2D(L):
+    A = get_laplace_matrix_as_tt(L)
+    M = build_mass_matrix_in_nodal_basis(L)
+    Ax = A.copy().expand_dims([1, 3])
+    Ay = A.copy().expand_dims([0, 2])
+    Mx = M.copy().expand_dims([1, 3])
+    My = M.copy().expand_dims([0, 2])
+    return (Ax * My + Ay * Mx).reshape_mode_indices([4,4])

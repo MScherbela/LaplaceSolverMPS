@@ -4,9 +4,10 @@ import matplotlib.pyplot as plt
 import numpy as np
 import numpy.polynomial.polynomial
 import matplotlib.pyplot as plt
+from numpy.polynomial import Polynomial
 
 from laplace_mps import tensormethods as tm
-from laplace_mps.solver import get_trig_function_as_tt, get_polynomial_as_tt
+from laplace_mps.solver import get_trig_function_as_tt, get_polynomial_as_tt, evaluate_nodal_basis
 
 
 def eval_poly(x, coeffs):
@@ -106,3 +107,32 @@ def get_u_function_as_tt(poly, trig: List[TrigFunction], L):
         u_tt = u_tt + get_trig_function_as_tt(t.coeffs, L)
     u_tt = u_tt * get_polynomial_as_tt(poly.coef, L)
     return u_tt.reapprox(rel_error=1e-16)
+
+
+def get_example_u_2D(L, basis='corner'):
+    # poly_x, trig_x = Polynomial([0, -1, 5, -3]), [TrigFunction(1, 0, 0)]
+    # poly_y, trig_y = Polynomial([1, -3, 2]), [TrigFunction(0, 1, 2 * np.pi)]
+    # fx = get_u_function_as_tt(poly_x, trig_x, L)
+    # fy = get_u_function_as_tt(poly_y, trig_y, L)
+    ux = get_polynomial_as_tt([0, -1, 5, -3], L)
+    uy = get_polynomial_as_tt([1, -3, 2], L) * get_trig_function_as_tt([0, 1, 1.0], L)
+    u = ux.expand_dims(1) * uy.expand_dims(0)
+    if basis == 'corner':
+        s = np.array([[-1, -1, 1, 1], [-1, 1, -1, 1]])
+    elif basis == 'nodal':
+        s = np.ones([2,1])
+    else:
+        raise ValueError(f"Unknown basis: {basis}")
+    return evaluate_nodal_basis(u, s).squeeze()
+
+def get_example_f_2D(L):
+    rel_error = 1e-14
+
+    ux = get_polynomial_as_tt([0, -1, 5, -3], L)
+    uy = get_polynomial_as_tt([1, -3, 2], L) * get_trig_function_as_tt([0, 1, 1.0], L)
+    ux2 = get_polynomial_as_tt([10, -18], L)
+    uy2 = get_polynomial_as_tt([4-4*np.pi**2, 12*np.pi**2, -8*np.pi**2], L) * get_trig_function_as_tt([0, 1, 1.0], L)
+    uy2 = uy2 + get_polynomial_as_tt([-12*np.pi, 16*np.pi], L) * get_trig_function_as_tt([1, 0, 1.0], L)
+
+    f = ux.expand_dims(1) * uy2.expand_dims(0) + ux2.expand_dims(1) * uy.expand_dims(0)
+    return -f.reapprox(rel_error=rel_error)
