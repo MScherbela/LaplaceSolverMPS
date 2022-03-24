@@ -109,11 +109,38 @@ def get_u_function_as_tt(poly, trig: List[TrigFunction], L):
     return u_tt.reapprox(rel_error=1e-16)
 
 
+def get_example_u_1D(L, basis='corner'):
+    u = get_polynomial_as_tt([1, -3, 2], L) * get_trig_function_as_tt([0, 1, 1.0], L)
+    if basis == 'corner':
+        s = np.array([-1, 1])
+    elif basis == 'nodal':
+        s = np.array([1])
+    else:
+        raise ValueError(f"Unknown basis: {basis}")
+    return evaluate_nodal_basis(u, s).squeeze()
+
+def get_example_u_deriv_1D(L, basis='corner'):
+    u1 = get_polynomial_as_tt([-3, 4], L) * get_trig_function_as_tt([0, 1, 1.0], L) + \
+        get_polynomial_as_tt([2*np.pi, -6*np.pi, 4*np.pi], L) * get_trig_function_as_tt([1, 0, 1.0], L)
+    if basis == 'corner':
+        s = np.array([-1, 1])
+    elif basis == 'nodal':
+        s = np.array([1])
+    else:
+        raise ValueError(f"Unknown basis: {basis}")
+    return evaluate_nodal_basis(u1, s).squeeze()
+
+
+
+def get_example_f_1D(L):
+    rel_error = 1e-14
+    f = get_polynomial_as_tt([4-4*np.pi**2, 12*np.pi**2, -8*np.pi**2], L) * get_trig_function_as_tt([0, 1, 1.0], L) + \
+          get_polynomial_as_tt([-12*np.pi, 16*np.pi], L) * get_trig_function_as_tt([1, 0, 1.0], L)
+
+    return -f.reapprox(rel_error=rel_error)
+
+
 def get_example_u_2D(L, basis='corner'):
-    # poly_x, trig_x = Polynomial([0, -1, 5, -3]), [TrigFunction(1, 0, 0)]
-    # poly_y, trig_y = Polynomial([1, -3, 2]), [TrigFunction(0, 1, 2 * np.pi)]
-    # fx = get_u_function_as_tt(poly_x, trig_x, L)
-    # fy = get_u_function_as_tt(poly_y, trig_y, L)
     ux = get_polynomial_as_tt([0, -1, 5, -3], L)
     uy = get_polynomial_as_tt([1, -3, 2], L) * get_trig_function_as_tt([0, 1, 1.0], L)
     u = ux.expand_dims(1) * uy.expand_dims(0)

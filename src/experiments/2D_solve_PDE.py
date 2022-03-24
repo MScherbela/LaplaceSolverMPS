@@ -1,18 +1,23 @@
-from laplace_mps.solver import evaluate_nodal_basis, solve_PDE_1D_with_preconditioner, solve_PDE_2D
+from laplace_mps.solver import evaluate_nodal_basis, solve_PDE_2D, solve_PDE_2D_with_preconditioner
 import numpy as np
 import matplotlib.pyplot as plt
 from laplace_mps.utils import draw_vertical_grid, eval_function, get_example_u_2D, get_example_f_2D
 
-L = 5
-h = 0.5**L
-solver_mse = 1e-10
-plot_functions = True and (L <= 8)
+def imshow(ax, x):
+    ax.imshow(x, cmap='bwr', clim=np.array([-1, 1]) * np.max(np.abs(x)), origin='lower', extent=[0, 1, 0, 1])
 
+L = 8
+h = 0.5**L
+solver_mse = 1e-8
+plot_functions = True and (L <= 7)
+
+
+max_rank = 60
 u_ref = get_example_u_2D(L, basis='nodal').flatten_mode_indices()
-f = get_example_f_2D(L)
+f = get_example_f_2D(L).reapprox(ranks_new=max_rank)
 
 r2_accuracy_solver = solver_mse**2 * (2**(2*L))
-u_solved, r2_precond = solve_PDE_2D(f, n_steps_max=400, max_rank=40, print_steps=True, r2_accuracy=r2_accuracy_solver)
+u_solved, r2_precond = solve_PDE_2D_with_preconditioner(f, n_steps_max=100, max_rank=max_rank, print_steps=True, r2_accuracy=r2_accuracy_solver)
 residual = (u_ref - u_solved).reapprox(rel_error=1e-12)
 L2_residual = (residual @ residual).squeeze().eval()
 mean_squared_error = np.sqrt(L2_residual * h)
@@ -26,11 +31,14 @@ if plot_functions:
 
     plt.close("all")
     fig, axes = plt.subplots(2,2, figsize=(14,8), dpi=100)
-    axes[0][0].imshow(u_ref_eval.T, cmap='bwr', clim=np.array([-1, 1]) * np.max(u_ref_eval), origin='lower', extent=[0, 1, 0, 1])
+    imshow(axes[0][0], u_ref_eval.T)
     axes[0][0].set_title("Reference solution")
 
-    axes[0][1].imshow(f_eval.T, cmap='bwr', clim=np.array([-1, 1]) * np.max(f_eval), origin='lower', extent=[0, 1, 0, 1])
-    axes[0][1].set_title("Reference solution")
+    imshow(axes[0][1], f_eval.T)
+    axes[0][1].set_title("-$\\nabla^2 u$")
 
-    axes[1][0].imshow(u_sol_eval.T, cmap='bwr', clim=np.array([-1, 1]) * np.max(u_sol_eval), origin='lower', extent=[0, 1, 0, 1])
+    imshow(axes[1][0], u_sol_eval.T)
     axes[1][0].set_title("PDE solution")
+
+    imshow(axes[1][1], (u_sol_eval-u_ref_eval).T)
+    axes[1][1].set_title("Residual: ")

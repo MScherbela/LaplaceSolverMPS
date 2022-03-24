@@ -1,10 +1,10 @@
 import numpy as np
 import matplotlib.pyplot as plt
-from laplace_mps.solver import get_BPX_preconditioner_naive, get_bpx_preconditioner
+from laplace_mps.solver import get_bpx_preconditioner_by_sum, get_bpx_preconditioner
 
 
 L = 10
-C_naive = get_BPX_preconditioner_naive(L)
+C_naive = get_bpx_preconditioner_by_sum(L)
 C_analytical = get_bpx_preconditioner(L)
 
 C_naive_eval = C_naive.eval(reshape='matrix')

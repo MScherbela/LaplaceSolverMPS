@@ -4,6 +4,9 @@ from scipy.sparse.linalg import svds
 
 def _get_required_ranks_for_accuracy(s, eps):
     cum_error = s[::-1] ** 2
+    # if cum_error[-1] == 0:
+    #     # cumulative error is 0, even when dropping everything
+    #     return 1
     cum_error /= cum_error[-1]
     n_to_remove = np.sum(cum_error < eps ** 2)
     return len(s) - n_to_remove
@@ -99,7 +102,14 @@ class TensorTrain:
         for k, (r_old, r_new) in enumerate(zip(self.ranks, ranks_new)):
             U_reshaped = U.reshape([-1, r_old])
             # Run SVD and truncate singular values
-            Vl,S,Vr = np.linalg.svd(U_reshaped, full_matrices=False)
+            if (r_new < r_old) and r_new < min(U_reshaped.shape):
+                Vl, S, Vr = svds(U_reshaped, k=r_new)
+                # SVDs sorts singular values from smallest to largest => flip order
+                Vl = Vl[:, ::-1]
+                S = S[::-1]
+                Vr = Vr[::-1, :]
+            else:
+                Vl,S,Vr = np.linalg.svd(U_reshaped, full_matrices=False)
             r_new = min(U_reshaped.shape[0], r_old, r_new, _get_required_ranks_for_accuracy(S, rel_error))
             Vl = Vl[:, :r_new]
             R = S[:r_new, None] * Vr[:r_new,:]
@@ -149,7 +159,7 @@ class TensorTrain:
 
     def __rmul__(self, other):
         """scalar x TensorTrain()"""
-        assert isinstance(other, (float, int)), "Only defined for scalar multiplication"
+        assert isinstance(other, (float, int, np.float)), "Only defined for scalar multiplication"
         output = self.copy()
         output.tensors[0] *= other
         return output
@@ -255,7 +265,7 @@ class TensorTrain:
     def norm_squared(self, orthogonalize=True):
         A = self.copy()
         A.left_orthogonalize()
-        return np.sum(A[0]**2)
+        return float(np.sum(A[0]**2))
 
 if __name__ == '__main__':
     np.random.seed(0)

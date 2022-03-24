@@ -174,13 +174,23 @@ def get_level_mapping_matrix_as_tt(L,l):
     end = np.array([1, 0])[:, None, None]
     return tm.TensorTrain([start] + [M] * l + [A] * (L - l) + [end]).squeeze()
 
-def get_BPX_preconditioner_naive(L):
+def get_bpx_preconditioner_by_sum(L):
     P0 = get_level_mapping_matrix_as_tt(L, 0)
     C = P0 @ P0.copy().transpose()
     for l in range(1,L+1):
         P = get_level_mapping_matrix_as_tt(L, l)
         PP = P @ P.copy().transpose()
         C = (C + 2**(-l) * PP).reapprox(ranks_new=8)
+    return C
+
+def get_bpx_preconditioner_by_sum_2D(L):
+    C = tm.zeros([[4,4] for _ in range(L)])
+    for l in range(0,L+1):
+        P = get_level_mapping_matrix_as_tt(L, l)
+        PP = P @ P.copy().transpose()
+        PP = PP.copy().expand_dims([1,3]) * PP.copy().expand_dims([0,2])
+        PP.reshape_mode_indices([4,4])
+        C = (C + 2**(-l) * PP).reapprox(ranks_new=64)
     return C
 
 def solve_PDE_1D(f, **solver_options):
@@ -191,7 +201,9 @@ def solve_PDE_1D(f, **solver_options):
         g.tensors[i] /= 2
 
     u, r2 = solve_with_grad_descent(A, g, **solver_options)
-    return u, r2
+    D = get_derivative_matrix_as_tt(L)
+    Du = (D @ u).reapprox(rel_error=1e-15)
+    return u, Du, r2
 
 def solve_PDE_2D(f: tm.TensorTrain, **solver_options):
     f = f.copy().flatten_mode_indices()
@@ -217,6 +229,31 @@ def solve_PDE_1D_with_preconditioner(f, **solver_options):
 
     v, r2 = solve_with_grad_descent(B, b, **solver_options)
     u = (C @ v).reapprox(rel_error=1e-16)
+
+    D = get_derivative_matrix_as_tt(L)
+    for i in range(L):
+        D.tensors[i] = D.tensors[i] * np.sqrt(2)
+    DC = (D @ C).reapprox(rel_error=1e-16)
+    Du = (DC @ v).reapprox(rel_error=1e-16)
+    return u, Du, r2
+
+def solve_PDE_2D_with_preconditioner(f, max_rank=20, **solver_options):
+    print("Building LHS and RHS...")
+    L = len(f) - 1
+    f = f.copy().flatten_mode_indices()
+    g = (get_rhs_matrix_as_tt_2D(L) @ f).squeeze().reapprox(rel_error=1e-12)
+    A = build_laplace_matrix_2D(L).reapprox(ranks_new=max_rank)
+    for i in range(len(A)):
+        g.tensors[i] /= 4
+
+    C = get_bpx_preconditioner_by_sum_2D(L).reapprox(rel_error=1e-12)
+    AC = (A @ C).reapprox(ranks_new=max_rank)
+    B = (C @ AC).reapprox(ranks_new=max_rank)
+    b = (C @ g).reapprox(ranks_new=max_rank)
+
+    print("Starting solver....")
+    v, r2 = solve_with_grad_descent(B, b, max_rank=max_rank, **solver_options)
+    u = (C @ v).reapprox(ranks_new=max_rank)
     return u, r2
 
 
@@ -226,10 +263,10 @@ def solve_with_grad_descent(A, b, n_steps_max=200, lr=0.8, max_rank=20, print_st
         if n%recalc_residual_every_n == 0:
             r = (b - A @ x).reapprox(ranks_new=max_rank)
         Ar = (A @ r).reapprox(ranks_new=max_rank)
-        r2 = float((r @ r).eval().flatten())
+        r2 = r.norm_squared()
         if r2_accuracy and (r2 <= r2_accuracy):
             break
-        gamma = lr * r2 / float((r @ Ar).eval().flatten())
+        gamma = float(lr * r2 / (r @ Ar).eval().flatten())
 
         x = x + gamma * r
         r = r - gamma * Ar
@@ -238,7 +275,8 @@ def solve_with_grad_descent(A, b, n_steps_max=200, lr=0.8, max_rank=20, print_st
         if print_steps and (n%5 == 0):
             print(f"Step {n:4d}: ||r||² = {r2:.2e} / {r2_accuracy:.2e}, gamma = {gamma: .2e}")
     r = (b - A @ x).reapprox(ranks_new=max_rank)
-    r2 = float((r @ r).eval().flatten())
+    r2 = r.norm_squared()
+    print(f"Final r2: {r2:.2e}")
     return x, r2
 
 def _get_bpx_factors():
@@ -338,4 +376,4 @@ def build_laplace_matrix_2D(L):
     Ay = A.copy().expand_dims([0, 2])
     Mx = M.copy().expand_dims([1, 3])
     My = M.copy().expand_dims([0, 2])
-    return (Ax * My + Ay * Mx).reshape_mode_indices([4,4])
+    return (Ax * My + Ay * Mx).reshape_mode_indices([4,4]).reapprox(rel_error=1e-15)
