@@ -8,7 +8,7 @@ singular_values_bpx = []
 singular_values_DC = []
 
 rel_error = 1e-12
-L_values = np.arange(2, 12)
+L_values = np.arange(2, 11)
 for L in L_values:
     print(L)
     A = get_laplace_matrix_as_tt(L)
@@ -37,6 +37,10 @@ plt.semilogy(L_values, cond_nr_A_raw, label="Raw stiffness matrix")
 plt.semilogy(L_values, cond_nr_A_bpx, label="Preconditioned stiffness matrix")
 plt.semilogy(L_values, cond_nr_bpx, label="BPX preconditioner")
 plt.semilogy(L_values, cond_nr_DC, label="$Q'$: Derivative * BPX preconditioner")
+plt.semilogy(L_values, 2**L_values, label="$2^L$", color='dimgray')
+plt.semilogy(L_values, 4**L_values, label="$2^{2L}$", color='lightgray')
+
+
 plt.xlabel("Nr of levels $L$")
 plt.ylabel("Condition number")
 plt.grid(alpha=0.5)

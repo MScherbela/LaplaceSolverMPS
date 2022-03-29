@@ -5,7 +5,7 @@ from laplace_mps.solver import evaluate_nodal_basis, _get_gram_matrix_legendre, 
     get_laplace_matrix_as_tt, get_derivative_matrix_as_tt, build_mass_matrix_in_nodal_basis
 from laplace_mps.tensormethods import TensorTrain
 
-L_values = np.arange(3, 11)
+L_values = np.arange(3, 35)
 error_L2 = np.ones_like(L_values, dtype=float)
 error_H1 = np.ones_like(L_values, dtype=float)
 error_H1_smart = np.ones_like(L_values, dtype=float)
@@ -25,7 +25,7 @@ for i, L in enumerate(L_values):
     Du = D @ u
     error_L2[i] = (u @ mass_matrix @ u).squeeze().eval() - refnorm_L2
     error_H1[i] = (u @ A @ u).squeeze().eval() - refnorm_H1
-    error_H1_smart[i] = Du.norm_squared() - refnorm_H1
+    error_H1_smart[i] = Du.norm_squared()*0.5**L - refnorm_H1
 
     if L == 10:
         axes[0].plot((np.arange(2**L) + 1)/2**L, u.eval(reshape='vector'))
@@ -34,6 +34,7 @@ for i, L in enumerate(L_values):
 axes[1].semilogy(L_values, np.abs(error_L2) / refnorm_L2, marker='o', label='L2')
 axes[1].semilogy(L_values, np.abs(error_H1_smart) / refnorm_H1, marker='s', label='H1 orthogonalized')
 axes[1].semilogy(L_values, np.abs(error_H1) / refnorm_H1, marker='^', label='H1 directly', ls='--')
+axes[1].semilogy(L_values, 0.1 * 0.5 ** (2*L_values), label='~$2^{-2L}$', color='dimgray', zorder=-1)
 for ax in axes:
     ax.grid(alpha=0.5)
 axes[1].legend()

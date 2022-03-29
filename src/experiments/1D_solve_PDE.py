@@ -4,9 +4,8 @@ import matplotlib.pyplot as plt
 from laplace_mps.utils import draw_vertical_grid, build_u_with_correct_boundary_conditions, get_f_from_u, evaluate_f_from_u, \
     eval_function, get_u_function_as_tt, get_example_u_1D, get_example_u_deriv_1D, get_example_f_1D
 
-L = 14
+L = 40
 h = 0.5**L
-solver_mse = 1e-12
 plot_functions = True and (L <= 14)
 
 max_rank = 20
@@ -15,9 +14,9 @@ u_ref = get_example_u_1D(L, basis='nodal')
 u_deriv_ref = get_example_u_deriv_1D(L, basis='nodal')
 f = get_example_f_1D(L).reapprox(ranks_new=max_rank)
 
-r2_accuracy_solver = solver_mse**2 * (2**L)
-u_solved, u_deriv_solved, r2_precond = solve_PDE_1D_with_preconditioner(f, n_steps_max=100, max_rank=max_rank, print_steps=True, r2_accuracy=r2_accuracy_solver)
-residual = (u_ref - u_solved).reapprox(rel_error=1e-12)
+# u_solved, u_deriv_solved, r2_precond = solve_PDE_1D_with_preconditioner(f, n_steps_max=100, max_rank=max_rank, print_steps=True, rel_accuracy=1e-12)
+u_solved, u_deriv_solved = solve_PDE_1D_with_preconditioner(f)
+residual = (u_ref - u_solved).reapprox(rel_error=1e-5)
 L2_residual = (residual @ residual).squeeze().eval()
 mean_squared_error = np.sqrt(L2_residual * h)
 print(f"MSE: {mean_squared_error:.2e}")

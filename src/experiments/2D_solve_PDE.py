@@ -6,21 +6,18 @@ from laplace_mps.utils import draw_vertical_grid, eval_function, get_example_u_2
 def imshow(ax, x):
     ax.imshow(x, cmap='bwr', clim=np.array([-1, 1]) * np.max(np.abs(x)), origin='lower', extent=[0, 1, 0, 1])
 
-L = 8
+L = 10
 h = 0.5**L
-solver_mse = 1e-8
 plot_functions = True and (L <= 7)
-
 
 max_rank = 60
 u_ref = get_example_u_2D(L, basis='nodal').flatten_mode_indices()
 f = get_example_f_2D(L).reapprox(ranks_new=max_rank)
 
-r2_accuracy_solver = solver_mse**2 * (2**(2*L))
-u_solved, r2_precond = solve_PDE_2D_with_preconditioner(f, n_steps_max=100, max_rank=max_rank, print_steps=True, r2_accuracy=r2_accuracy_solver)
+u_solved = solve_PDE_2D_with_preconditioner(f)
 residual = (u_ref - u_solved).reapprox(rel_error=1e-12)
 L2_residual = (residual @ residual).squeeze().eval()
-mean_squared_error = np.sqrt(L2_residual * h)
+mean_squared_error = np.sqrt(L2_residual * h**2)
 print(f"MSE: {mean_squared_error:.2e}")
 
 

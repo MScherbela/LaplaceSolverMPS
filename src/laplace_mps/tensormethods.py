@@ -40,6 +40,15 @@ class TensorTrain:
         return [U.shape[1:-1] for U in self.tensors]
 
     @classmethod
+    def from_ttpylist(cls, tensors):
+        tensors = [U.transpose(np.arange(U.ndim)[::-1]) for U in tensors][::-1]
+        return cls(tensors)
+
+    def to_ttpylist(self):
+        return [U.transpose(np.arange(U.ndim)[::-1]) for U in self.tensors][::-1]
+
+
+    @classmethod
     def ttsvd(cls, A: np.array, ranks: List[int], use_sparse_svd=False):
         d = len(A.shape)
         assert len(ranks) == (d - 1)
@@ -261,11 +270,17 @@ class TensorTrain:
                 pos = [a - 1 if a < 0 else a + 1 for a in axis]
             self.tensors[k] = np.expand_dims(U, pos)
         return self
+    #
+    # def expand_ranks(self, mode_indices):
+    #     for n in range(n_end):
+    #         self.tensors.append(np.ones([1,1,1]))
+    #     return self
 
     def norm_squared(self, orthogonalize=True):
         A = self.copy()
         A.left_orthogonalize()
         return float(np.sum(A[0]**2))
+
 
 if __name__ == '__main__':
     np.random.seed(0)

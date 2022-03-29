@@ -9,6 +9,7 @@ from numpy.polynomial import Polynomial
 from laplace_mps import tensormethods as tm
 from laplace_mps.solver import get_trig_function_as_tt, get_polynomial_as_tt, evaluate_nodal_basis
 
+REL_ERROR = 1e-15
 
 def eval_poly(x, coeffs):
     y = np.zeros_like(x)
@@ -117,7 +118,7 @@ def get_example_u_1D(L, basis='corner'):
         s = np.array([1])
     else:
         raise ValueError(f"Unknown basis: {basis}")
-    return evaluate_nodal_basis(u, s).squeeze()
+    return evaluate_nodal_basis(u, s).squeeze().reapprox(rel_error=REL_ERROR)
 
 def get_example_u_deriv_1D(L, basis='corner'):
     u1 = get_polynomial_as_tt([-3, 4], L) * get_trig_function_as_tt([0, 1, 1.0], L) + \
@@ -128,16 +129,12 @@ def get_example_u_deriv_1D(L, basis='corner'):
         s = np.array([1])
     else:
         raise ValueError(f"Unknown basis: {basis}")
-    return evaluate_nodal_basis(u1, s).squeeze()
-
-
+    return evaluate_nodal_basis(u1, s).squeeze().reapprox(rel_error=REL_ERROR)
 
 def get_example_f_1D(L):
-    rel_error = 1e-14
     f = get_polynomial_as_tt([4-4*np.pi**2, 12*np.pi**2, -8*np.pi**2], L) * get_trig_function_as_tt([0, 1, 1.0], L) + \
           get_polynomial_as_tt([-12*np.pi, 16*np.pi], L) * get_trig_function_as_tt([1, 0, 1.0], L)
-
-    return -f.reapprox(rel_error=rel_error)
+    return -f.reapprox(rel_error=REL_ERROR)
 
 
 def get_example_u_2D(L, basis='corner'):
@@ -153,8 +150,6 @@ def get_example_u_2D(L, basis='corner'):
     return evaluate_nodal_basis(u, s).squeeze()
 
 def get_example_f_2D(L):
-    rel_error = 1e-14
-
     ux = get_polynomial_as_tt([0, -1, 5, -3], L)
     uy = get_polynomial_as_tt([1, -3, 2], L) * get_trig_function_as_tt([0, 1, 1.0], L)
     ux2 = get_polynomial_as_tt([10, -18], L)
@@ -162,4 +157,4 @@ def get_example_f_2D(L):
     uy2 = uy2 + get_polynomial_as_tt([-12*np.pi, 16*np.pi], L) * get_trig_function_as_tt([1, 0, 1.0], L)
 
     f = ux.expand_dims(1) * uy2.expand_dims(0) + ux2.expand_dims(1) * uy.expand_dims(0)
-    return -f.reapprox(rel_error=rel_error)
+    return -f.reapprox(rel_error=REL_ERROR)

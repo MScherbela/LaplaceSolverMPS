@@ -27,6 +27,13 @@ def _polynomial_to_legendre(coeffs):
 def _get_gram_matrix_legendre():
     return np.diag([2,2/3])
 
+def get_rhs_matrix_bpx(L):
+    R = get_bpx_Qt(L)
+    G = _get_gram_matrix_legendre() / 4
+    G = G @ np.array([[1, 1], [-1, 1]])  # convert from left/right-basis to Legendre (P0, P1) basis
+    R.tensors[-1] = (R.tensors[-1].reshape([-1, 2]) @ G)[..., None]
+    return R
+
 def get_rhs_matrix_as_tt(L, basis="corner"):
     R = get_overlap_matrix_as_tt(L).transpose() * 0.5
 
@@ -146,7 +153,7 @@ def get_overlap_matrix_as_tt(L):
 
 def get_derivative_matrix_as_tt(L):
     """Returns a tensor-train representing the matris M' which computes the first derivatives of a function in a hat-like basis."""
-    M = _get_refinement_tensor() * np.sqrt(2)
+    M = _get_refinement_tensor() * 2
     M_first = np.array([1, 0]).reshape([1, 2])
     M_last = np.array([1,-1]).reshape(2, 1)
     tensors = [M for _ in range(L)]
@@ -157,10 +164,20 @@ def get_derivative_matrix_as_tt(L):
 def get_laplace_matrix_as_tt(L):
     Mp = get_derivative_matrix_as_tt(L)
     A = Mp.copy().transpose() @ Mp
+    for i in range(L):
+        A.tensors[i] = A.tensors[i] / 2
     A.reapprox(rel_error=1e-16)
     # for i in range(L):
     #     A.tensors[i] *= 2
     return A
+
+def get_laplace_bpx(L):
+    Qp = get_bpx_Qp(L) # (M' C)
+    B = Qp.copy().transpose() @ Qp
+    for i in range(L):
+        B.tensors[i] = B.tensors[i] / 2
+    B.reapprox(rel_error=1e-15)
+    return B
 
 def get_level_mapping_matrix_as_tt(L,l):
     M = _get_refinement_tensor()
@@ -200,10 +217,11 @@ def solve_PDE_1D(f, **solver_options):
     for i in range(len(A)):
         g.tensors[i] /= 2
 
-    u, r2 = solve_with_grad_descent(A, g, **solver_options)
+    # u, r2 = solve_with_grad_descent(A, g, **solver_options)
+    u = solve_with_ame(A, g, **solver_options)
     D = get_derivative_matrix_as_tt(L)
     Du = (D @ u).reapprox(rel_error=1e-15)
-    return u, Du, r2
+    return u, Du
 
 def solve_PDE_2D(f: tm.TensorTrain, **solver_options):
     f = f.copy().flatten_mode_indices()
@@ -213,31 +231,36 @@ def solve_PDE_2D(f: tm.TensorTrain, **solver_options):
     for i in range(len(A)):
         g.tensors[i] /= 4
 
-    u, r2 = solve_with_grad_descent(A, g, **solver_options)
-    return u, r2
+    u = solve_with_ame(A, g)
+    u.reapprox(rel_error=1e-14)
+    return u
 
-def solve_PDE_1D_with_preconditioner(f, **solver_options):
+def solve_PDE_1D_with_preconditioner(f, max_rank=60, **solver_options):
+    REL_ERROR = 1e-15
     L = len(f) - 1
-    g = (get_rhs_matrix_as_tt(L) @ f).squeeze()
+    C = get_bpx_preconditioner(L)
+
+    b = (get_rhs_matrix_bpx(L) @ f).squeeze()
+    # g = (get_rhs_matrix_as_tt(L) @ f).squeeze()
+    # b = (C @ g).reapprox(rel_error=REL_ERROR)
+
     A = get_laplace_matrix_as_tt(L)
     for i in range(len(A)):
-        g.tensors[i] /= 2
+        b.tensors[i] /= 2
+    B = get_laplace_bpx(L).reapprox(rel_error=REL_ERROR)
 
-    C = get_bpx_preconditioner(L)
-    B = (C @ A @ C).reapprox(rel_error=1e-12)
-    b = (C @ g).reapprox(rel_error=1e-12)
+    # v, r2 = solve_with_grad_descent(B, b, **solver_options)
+    v = solve_with_ame(B, b, **solver_options)
+    u = (C @ v).reapprox(rel_error=REL_ERROR)
 
-    v, r2 = solve_with_grad_descent(B, b, **solver_options)
-    u = (C @ v).reapprox(rel_error=1e-16)
+    # D = get_derivative_matrix_as_tt(L)
+    # DC = (D @ C).reapprox(rel_error=REL_ERROR)
+    # Du = (DC @ v).reapprox(rel_error=REL_ERROR)
+    Qp = get_bpx_Qp(L)
+    Du = (Qp @ v).reapprox(rel_error=REL_ERROR)
+    return u, Du
 
-    D = get_derivative_matrix_as_tt(L)
-    for i in range(L):
-        D.tensors[i] = D.tensors[i] * np.sqrt(2)
-    DC = (D @ C).reapprox(rel_error=1e-16)
-    Du = (DC @ v).reapprox(rel_error=1e-16)
-    return u, Du, r2
-
-def solve_PDE_2D_with_preconditioner(f, max_rank=20, **solver_options):
+def solve_PDE_2D_with_preconditioner(f, max_rank=60, **solver_options):
     print("Building LHS and RHS...")
     L = len(f) - 1
     f = f.copy().flatten_mode_indices()
@@ -252,28 +275,42 @@ def solve_PDE_2D_with_preconditioner(f, max_rank=20, **solver_options):
     b = (C @ g).reapprox(ranks_new=max_rank)
 
     print("Starting solver....")
-    v, r2 = solve_with_grad_descent(B, b, max_rank=max_rank, **solver_options)
+    v = solve_with_ame(B, b, **solver_options)
     u = (C @ v).reapprox(ranks_new=max_rank)
-    return u, r2
+    return u
 
 
-def solve_with_grad_descent(A, b, n_steps_max=200, lr=0.8, max_rank=20, print_steps=False, recalc_residual_every_n=10, r2_accuracy=None):
+def solve_with_ame(A, b, **solver_options):
+    import tt
+    from tt.amen import amen_solve
+    A_ttpy = tt.matrix.from_list(A.to_ttpylist())
+    b_ttpy = tt.vector.from_list(b.to_ttpylist())
+    x0_ttpy = tt.ones(2, len(A))
+    x_ttpy = amen_solve(A_ttpy, b_ttpy, x0_ttpy, eps=1e-14, nswp=40, local_iters=2, verb=1)
+    return tm.TensorTrain.from_ttpylist(tt.vector.to_list(x_ttpy))
+
+
+def solve_with_grad_descent(A, b, n_steps_max=200, lr=0.8, max_rank=20, print_steps=False, recalc_residual_every_n=10, rel_accuracy=1e-14):
     x = tm.zeros(b.mode_sizes)
     for n in range(n_steps_max):
         if n%recalc_residual_every_n == 0:
             r = (b - A @ x).reapprox(ranks_new=max_rank)
         Ar = (A @ r).reapprox(ranks_new=max_rank)
         r2 = r.norm_squared()
-        if r2_accuracy and (r2 <= r2_accuracy):
-            break
-        gamma = float(lr * r2 / (r @ Ar).eval().flatten())
+        if (n > 10) and (n % 10 == 0):
+            x2 = x.norm_squared()
+            rel_error = r2 / x2
+            if print_steps:
+                print(f"Step {n:4d}: ||r||² / ||x||^2 = {rel_error:.2e} / {rel_accuracy:.2e}, gamma = {gamma: .2e}")
+            if rel_error <= rel_accuracy:
+                break
 
+        gamma = float(lr * r2 / (r @ Ar).eval().flatten())
         x = x + gamma * r
         r = r - gamma * Ar
         x.reapprox(ranks_new=max_rank)
         r.reapprox(ranks_new=max_rank)
-        if print_steps and (n%5 == 0):
-            print(f"Step {n:4d}: ||r||² = {r2:.2e} / {r2_accuracy:.2e}, gamma = {gamma: .2e}")
+
     r = (b - A @ x).reapprox(ranks_new=max_rank)
     r2 = r.norm_squared()
     print(f"Final r2: {r2:.2e}")
@@ -350,7 +387,45 @@ def get_bpx_preconditioner(L):
     return tm.TensorTrain([C] + [X for _ in range(L)] + [Z]).squeeze()
 
 
-def build_mass_matrix_legendre(L):
+def get_bpx_Qp_term(L, l):
+    W, U, _, Y = _get_bpx_factors()
+    Z = np.array([1, 0])[:, None, None, None]
+    if l == 0:
+        C = np.array([1, 0])[None, None, None, :]
+        tensors = [C] + [Y for _ in range(L - l)] + [Z]
+    else:
+        C = np.array([1, 0, 0, 0])[None, None, None, :]
+        tensors = [C] + [W for _ in range(l - 1)] + [U] + [Y for _ in range(L - l)] + [Z]
+    return tm.TensorTrain(tensors).squeeze()
+
+
+def get_bpx_Qp(L):
+    Qp = tm.zeros([[2,2] for _ in range(L)])
+    for l in range(L+1):
+        Qp  = Qp + get_bpx_Qp_term(L, l)
+        Qp.reapprox(rel_error=1e-16)
+    return Qp
+
+
+def get_bpx_Qt_term(L, l):
+    W, _, V, _ = _get_bpx_factors()
+    W /= 2.0
+    V /= 2.0
+    C = np.array([1,0,0,0])[None, None, None, :]
+    Z = np.zeros([2,2,2])
+    Z[:, 0, :] = np.array([[1, 1],[1, -1]]) / 2
+    Z = Z.reshape([4,2,1,1])
+    tensors = [C] + [W for _ in range(l)] + [V for _ in range(L-l)] + [Z]
+    return tm.TensorTrain(tensors).squeeze()
+
+def get_bpx_Qt(L):
+    Q = tm.zeros([[2,2] for _ in range(L)] + [[2,1]])
+    for l in range(L+1):
+        Q  = Q + get_bpx_Qt_term(L, l)
+        Q.reapprox(rel_error=1e-16)
+    return Q
+
+def get_gram_matrix_as_tt(L):
     factors = [(np.eye(2)/2)[None, ..., None] for _ in range(L)]
     factors += [_get_gram_matrix_legendre()[None, ..., None] / 2]
     return tm.TensorTrain(factors)
@@ -358,8 +433,8 @@ def build_mass_matrix_legendre(L):
 def build_mass_matrix_in_nodal_basis(L):
     M = get_overlap_matrix_as_tt(L)
     M.tensors[-1] = M.tensors[-1][...,None,:]
-    M_legendre = build_mass_matrix_legendre(L)
-    return (M.copy().transpose() @ M_legendre @ M).squeeze().reapprox()
+    G = get_gram_matrix_as_tt(L)
+    return (M.copy().transpose() @ G @ M).squeeze().reapprox()
 
 def build_2D_mass_matrix(L):
     mass = build_mass_matrix_in_nodal_basis(L)
@@ -377,3 +452,6 @@ def build_laplace_matrix_2D(L):
     Mx = M.copy().expand_dims([1, 3])
     My = M.copy().expand_dims([0, 2])
     return (Ax * My + Ay * Mx).reshape_mode_indices([4,4]).reapprox(rel_error=1e-15)
+
+if __name__ == '__main__':
+    phi = build_mass_matrix_in_nodal_basis(3)
