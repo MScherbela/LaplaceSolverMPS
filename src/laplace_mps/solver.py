@@ -58,6 +58,20 @@ def get_rhs_matrix_as_tt_2D(L):
     R.tensors[-1] = R.tensors[-1].reshape([-1, 4, 1])
     return R
 
+def get_rhs_matrix_bpx_2D(L):
+    max_rank = 80
+    rel_error = 1e-14
+    R_2D_bpx = tm.zeros([(4, 4) for _ in range(L)] + [(4,)])
+    G = get_gram_matrix_as_tt(L, basis='corner') * 0.5
+    for l in range(L + 1):
+        term = get_bpx_Qt_term(L, l) @ G
+        term = term.copy().expand_dims([1, 3]) * term.copy().expand_dims([0, 2])
+        R_2D_bpx = R_2D_bpx + (2 ** l) * term.reshape_mode_indices([(4, 4) for _ in range(L)] + [(4,)])
+        R_2D_bpx.reapprox(ranks_new=max_rank, rel_error=rel_error)
+    # for i in range(L):
+    #     R_2D_bpx.tensors[i] = R_2D_bpx.tensors[i] * 4
+    return R_2D_bpx.squeeze()
+
 
 def to_legendre_basis(t: tm.TensorTrain):
     t = t.copy()
@@ -179,6 +193,35 @@ def get_laplace_bpx(L):
     B.reapprox(rel_error=1e-15)
     return B
 
+def get_laplace_bpx_2D(L, max_rank=70):
+    Qp_matrices = [get_bpx_Qp_term(L, l) for l in range(0, L + 1)]
+    Qt_matrices = [get_bpx_Qt_term(L, l) for l in range(0, L + 1)]
+    for l in range(1, L + 1):
+        for i in range(l):
+            Qt_matrices[l].tensors[i] = Qt_matrices[l].tensors[i] * 2
+    G = get_gram_matrix_as_tt(L)
+
+    B = tm.zeros([[2, 2, 2, 2] for _ in range(L)])
+    for l_plus_m in range(2 * L + 1):
+        for l in range(max(l_plus_m - L, 0), min(l_plus_m, L) + 1):
+            m = l_plus_m - l
+            if m > l:
+                continue
+            Qp_term = Qp_matrices[l].copy().transpose() @ Qp_matrices[m]
+            Q_term = (Qt_matrices[l] @ G @ Qt_matrices[m].copy().transpose()).squeeze()
+            lm_term = Qp_term.copy().expand_dims([1, 3]) * Q_term.copy().expand_dims([0, 2]) + \
+                      Q_term.copy().expand_dims([1, 3]) * Qp_term.copy().expand_dims([0, 2])
+            if m == l:
+                lm_term = 0.5 * lm_term
+            B = B + lm_term
+            B.reapprox(ranks_new=max_rank, rel_error=1e-15)
+            print(l,m, B.shapes)
+    B.reshape_mode_indices([4, 4])
+    B = B + B.copy().transpose()
+    for i, U in enumerate(B):
+        B.tensors[i] = U * 0.5
+    return B
+
 def get_level_mapping_matrix_as_tt(L,l):
     M = _get_refinement_tensor()
     A = np.zeros([2, 2, 1, 2])
@@ -201,13 +244,14 @@ def get_bpx_preconditioner_by_sum(L):
     return C
 
 def get_bpx_preconditioner_by_sum_2D(L):
+    max_rank = 64
     C = tm.zeros([[4,4] for _ in range(L)])
     for l in range(0,L+1):
         P = get_level_mapping_matrix_as_tt(L, l)
         PP = P @ P.copy().transpose()
         PP = PP.copy().expand_dims([1,3]) * PP.copy().expand_dims([0,2])
         PP.reshape_mode_indices([4,4])
-        C = (C + 2**(-l) * PP).reapprox(ranks_new=64)
+        C = (C + (0.5**l) * PP).reapprox(ranks_new=max_rank)
     return C
 
 def solve_PDE_1D(f, **solver_options):
@@ -264,18 +308,20 @@ def solve_PDE_2D_with_preconditioner(f, max_rank=60, **solver_options):
     print("Building LHS and RHS...")
     L = len(f) - 1
     f = f.copy().flatten_mode_indices()
-    g = (get_rhs_matrix_as_tt_2D(L) @ f).squeeze().reapprox(rel_error=1e-12)
-    A = build_laplace_matrix_2D(L).reapprox(ranks_new=max_rank)
-    for i in range(len(A)):
-        g.tensors[i] /= 4
+    # g = (get_rhs_matrix_as_tt_2D(L) @ f).squeeze().reapprox(rel_error=1e-12)
+    # A = build_laplace_matrix_2D(L).reapprox(ranks_new=max_rank)
+    # for i in range(len(A)):
+    #     g.tensors[i] /= 4
 
-    C = get_bpx_preconditioner_by_sum_2D(L).reapprox(rel_error=1e-12)
-    AC = (A @ C).reapprox(ranks_new=max_rank)
-    B = (C @ AC).reapprox(ranks_new=max_rank)
-    b = (C @ g).reapprox(ranks_new=max_rank)
+    # AC = (A @ C).reapprox(ranks_new=max_rank)
+    # B = (C @ AC).reapprox(ranks_new=max_rank)
+    # b = (C @ g).reapprox(ranks_new=max_rank)
+    B = get_laplace_bpx_2D(L)
+    b = (get_rhs_matrix_bpx_2D(L) @ f).squeeze()
 
     print("Starting solver....")
     v = solve_with_ame(B, b, **solver_options)
+    C = get_bpx_preconditioner_by_sum_2D(L).reapprox(rel_error=1e-12)
     u = (C @ v).reapprox(ranks_new=max_rank)
     return u
 
@@ -414,20 +460,27 @@ def get_bpx_Qt_term(L, l):
     C = np.array([1,0,0,0])[None, None, None, :]
     Z = np.zeros([2,2,2])
     Z[:, 0, :] = np.array([[1, 1],[1, -1]]) / 2
-    Z = Z.reshape([4,2,1,1])
+    Z = Z.reshape([4,1,2,1])
     tensors = [C] + [W for _ in range(l)] + [V for _ in range(L-l)] + [Z]
     return tm.TensorTrain(tensors).squeeze()
 
 def get_bpx_Qt(L):
-    Q = tm.zeros([[2,2] for _ in range(L)] + [[2,1]])
+    Q = tm.zeros([[2,2] for _ in range(L)] + [[1,2]])
     for l in range(L+1):
         Q  = Q + get_bpx_Qt_term(L, l)
         Q.reapprox(rel_error=1e-16)
     return Q
 
-def get_gram_matrix_as_tt(L):
+def get_gram_matrix_as_tt(L, basis='legendre'):
     factors = [(np.eye(2)/2)[None, ..., None] for _ in range(L)]
-    factors += [_get_gram_matrix_legendre()[None, ..., None] / 2]
+    G = _get_gram_matrix_legendre()
+    if basis == 'corner':
+        G = G @ np.array([[1, 1], [-1, 1]])
+    elif basis == 'legendre':
+        pass
+    else:
+        raise ValueError("Unknown basis")
+    factors.append(G[None, ..., None] / 2)
     return tm.TensorTrain(factors)
 
 def build_mass_matrix_in_nodal_basis(L):

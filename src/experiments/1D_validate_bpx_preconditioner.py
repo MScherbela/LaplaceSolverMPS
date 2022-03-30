@@ -1,6 +1,6 @@
 import numpy as np
 import matplotlib.pyplot as plt
-from laplace_mps.solver import get_bpx_preconditioner_by_sum, get_bpx_preconditioner, get_bpx_Qp, get_bpx_Qt, get_derivative_matrix_as_tt, get_overlap_matrix_as_tt
+from laplace_mps.solver import get_bpx_preconditioner_by_sum, get_bpx_preconditioner, get_bpx_Qp, get_bpx_Qt, get_derivative_matrix_as_tt, get_overlap_matrix_as_tt, get_gram_matrix_as_tt, get_laplace_matrix_as_tt
 
 
 L = 3
@@ -12,6 +12,11 @@ M = get_overlap_matrix_as_tt(L)
 C_expanded = C.copy()
 C_expanded.tensors.append(np.eye(2)[None, :, :, None])
 CMt = C_expanded @ M.copy().transpose()
+G = get_gram_matrix_as_tt(L)
+
+mass_naive = (CMt @ G @ CMt.copy().transpose()).squeeze()
+mass_directly = (Qt @ G @ Qt.copy().transpose()).squeeze()
+
 
 
 plt.close("all")
