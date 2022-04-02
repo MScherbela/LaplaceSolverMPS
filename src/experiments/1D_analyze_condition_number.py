@@ -46,16 +46,4 @@ plt.ylabel("Condition number")
 plt.grid(alpha=0.5)
 plt.legend()
 
-#
-#
-# fig, (ax_raw, ax_bpx, ax_eig) = plt.subplots(1,3)
-# ax_raw.imshow(A_eval)
-# ax_bpx.imshow(A_bpx_eval)
-# ax_eig.semilogy(eig_raw, label="Raw A")
-# ax_eig.semilogy(eig_bpx, label="BPX preconditioned")
-# ax_eig.legend()
-#
-#
-#
-
-
+plt.savefig(f"outputs/1D_condition_number.pdf", bbox_inches='tight')

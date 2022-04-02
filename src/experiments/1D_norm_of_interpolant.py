@@ -2,10 +2,10 @@ import numpy as np
 import matplotlib.pyplot as plt
 from laplace_mps.utils import get_polynomial_as_tt, get_trig_function_as_tt
 from laplace_mps.solver import evaluate_nodal_basis, _get_gram_matrix_legendre, \
-    get_laplace_matrix_as_tt, get_derivative_matrix_as_tt, build_mass_matrix_in_nodal_basis
+    get_laplace_matrix_as_tt, get_derivative_matrix_as_tt, get_L2_norm_1D
 from laplace_mps.tensormethods import TensorTrain
 
-L_values = np.arange(3, 35)
+L_values = np.arange(3, 33)
 error_L2 = np.ones_like(L_values, dtype=float)
 error_H1 = np.ones_like(L_values, dtype=float)
 error_H1_smart = np.ones_like(L_values, dtype=float)
@@ -17,13 +17,12 @@ plt.close("all")
 fig, axes = plt.subplots(1,2, dpi=100, figsize=(13,8))
 
 for i, L in enumerate(L_values):
-    mass_matrix = build_mass_matrix_in_nodal_basis(L)
     A = get_laplace_matrix_as_tt(L)
     D = get_derivative_matrix_as_tt(L)
     u = get_polynomial_as_tt([2,-2, 1], L) * get_trig_function_as_tt([0,1,0.25], L)
     u = evaluate_nodal_basis(u, [1.0], basis='corner').squeeze()
     Du = D @ u
-    error_L2[i] = (u @ mass_matrix @ u).squeeze().eval() - refnorm_L2
+    error_L2[i] = get_L2_norm_1D(u) - refnorm_L2
     error_H1[i] = (u @ A @ u).squeeze().eval() - refnorm_H1
     error_H1_smart[i] = Du.norm_squared()*0.5**L - refnorm_H1
 

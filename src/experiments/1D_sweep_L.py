@@ -1,10 +1,10 @@
-from laplace_mps.solver import evaluate_nodal_basis, solve_PDE_1D_with_preconditioner, solve_PDE_1D, build_mass_matrix_in_nodal_basis
+from laplace_mps.solver import evaluate_nodal_basis, solve_PDE_1D_with_preconditioner, solve_PDE_1D, build_mass_matrix_in_nodal_basis, get_L2_norm_1D
 import numpy as np
 import matplotlib.pyplot as plt
 from laplace_mps.utils import build_u_with_correct_boundary_conditions, get_example_u_1D, get_example_u_deriv_1D, get_example_f_1D
 
 
-L_values = np.arange(3, 35)
+L_values = np.arange(3, 30)
 error_L2 = [np.ones(len(L_values))*np.nan, np.ones(len(L_values))*np.nan]
 error_H1 = [np.ones(len(L_values))*np.nan, np.ones(len(L_values))*np.nan]
 error_of_L2_norm = [np.ones(len(L_values))*np.nan, np.ones(len(L_values))*np.nan]
@@ -36,7 +36,7 @@ for ind_solver, solver in enumerate([solve_PDE_1D_with_preconditioner, solve_PDE
         # H1_residual = (u_deriv_ref - u_deriv_solved).reapprox(rel_error=1e-12).norm_squared() * h
 
         mass_matrix = build_mass_matrix_in_nodal_basis(L)
-        error_of_L2_norm[ind_solver][ind_L] = (u_solved @ mass_matrix @ u_solved).squeeze().eval() - refnorm_L2
+        error_of_L2_norm[ind_solver][ind_L] = get_L2_norm_1D(u_solved) - refnorm_L2
         error_of_H1_norm[ind_solver][ind_L] = u_deriv_solved.norm_squared()*h - refnorm_H1
 
         print(f"L2: {L2_residual:.2e}")

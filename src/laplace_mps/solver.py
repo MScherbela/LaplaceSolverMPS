@@ -37,23 +37,25 @@ def get_rhs_matrix_bpx(L):
 def get_rhs_matrix_as_tt(L, basis="corner"):
     R = get_overlap_matrix_as_tt(L).transpose() * 0.5
 
-    G = _get_gram_matrix_legendre() / 2
-    if basis == 'corner':
-        G = G @  np.array([[1,1],[-1,1]]) # convert from left/right-basis to Legendre (P0, P1) basis
-    elif basis == "legendre":
-        pass
-    else:
-        raise NotImplementedError(f"Unknown basis {basis}")
+    G = get_gram_matrix_as_tt(L, basis)
+    R = R @ G
+    # G = _get_gram_matrix_legendre() / 2
+    # if basis == 'corner':
+    #     G = G @  np.array([[1,1],[-1,1]]) # convert from left/right-basis to Legendre (P0, P1) basis
+    # elif basis == "legendre":
+    #     pass
+    # else:
+    #     raise NotImplementedError(f"Unknown basis {basis}")
 
-    R.tensors[-1] = (R.tensors[-1].squeeze(-1) @ G)[...,None]
+    # R.tensors[-1] = (R.tensors[-1].squeeze(-1) @ G)[...,None]
     return R
 
 def get_rhs_matrix_as_tt_2D(L):
     R = get_rhs_matrix_as_tt(L).squeeze()
     Rx = R.copy().expand_dims([1,3])
-    Rx.tensors[-1] = Rx.tensors[-1].squeeze(axis=-2)
+    # Rx.tensors[-1] = Rx.tensors[-1].squeeze(axis=-2)
     Ry = R.copy().expand_dims([0,2])
-    Ry.tensors[-1] = Ry.tensors[-1].squeeze(axis=-2)
+    # Ry.tensors[-1] = Ry.tensors[-1].squeeze(axis=-2)
     R = (Rx * Ry).reshape_mode_indices([[4,4]]*L + [[2,2]]).reapprox(rel_error=1e-15)
     R.tensors[-1] = R.tensors[-1].reshape([-1, 4, 1])
     return R
@@ -159,7 +161,7 @@ def get_overlap_matrix_as_tt(L):
     """Retuns a tensor-train representing the matrix ':math:`M_ij = \int phi_i phi_j` where phi_i and phi_j are hat-like basis functions"""
     M = _get_refinement_tensor()
     M_first = np.array([1, 0]).reshape([1, 2])
-    M_last = np.array([[1,1],[1,-1]]).reshape(2, 2, 1) / 2
+    M_last = np.array([[1,1],[1,-1]]).reshape(2, 2, 1, 1) / 2
     tensors = [M for _ in range(L)]
     tensors[0] = np.tensordot(M_first,tensors[0], axes=[-1,0])
     tensors.append(M_last)
@@ -258,11 +260,11 @@ def solve_PDE_1D(f, **solver_options):
     L = len(f) - 1
     g = (get_rhs_matrix_as_tt(L) @ f).squeeze()
     A = get_laplace_matrix_as_tt(L)
-    for i in range(len(A)):
-        g.tensors[i] /= 2
+    # for i in range(len(A)):
+    #     g.tensors[i] /= 2
 
     # u, r2 = solve_with_grad_descent(A, g, **solver_options)
-    u = solve_with_ame(A, g, **solver_options)
+    u = solve_with_amen(A, g, **solver_options)
     D = get_derivative_matrix_as_tt(L)
     Du = (D @ u).reapprox(rel_error=1e-15)
     return u, Du
@@ -272,15 +274,15 @@ def solve_PDE_2D(f: tm.TensorTrain, **solver_options):
     L = len(f) - 1
     g = (get_rhs_matrix_as_tt_2D(L) @ f).squeeze()
     A = build_laplace_matrix_2D(L)
-    for i in range(len(A)):
-        g.tensors[i] /= 4
+    # for i in range(len(A)):
+    #     g.tensors[i] /= 4
 
-    u = solve_with_ame(A, g)
+    u = solve_with_amen(A, g, **solver_options)
     u.reapprox(rel_error=1e-14)
     return u
 
 def solve_PDE_1D_with_preconditioner(f, max_rank=60, **solver_options):
-    REL_ERROR = 1e-15
+    REL_ERROR = 1e-12
     L = len(f) - 1
     C = get_bpx_preconditioner(L)
 
@@ -294,7 +296,8 @@ def solve_PDE_1D_with_preconditioner(f, max_rank=60, **solver_options):
     B = get_laplace_bpx(L).reapprox(rel_error=REL_ERROR)
 
     # v, r2 = solve_with_grad_descent(B, b, **solver_options)
-    v = solve_with_ame(B, b, **solver_options)
+    v = solve_with_amen(B, b, **solver_options)
+    v.reapprox(rel_error=REL_ERROR, ranks_new=max_rank)
     u = (C @ v).reapprox(rel_error=REL_ERROR)
 
     # D = get_derivative_matrix_as_tt(L)
@@ -320,19 +323,25 @@ def solve_PDE_2D_with_preconditioner(f, max_rank=60, **solver_options):
     b = (get_rhs_matrix_bpx_2D(L) @ f).squeeze()
 
     print("Starting solver....")
-    v = solve_with_ame(B, b, **solver_options)
+    v = solve_with_amen(B, b, **solver_options)
+    v.reapprox(ranks_new=max_rank)
     C = get_bpx_preconditioner_by_sum_2D(L).reapprox(rel_error=1e-12)
     u = (C @ v).reapprox(ranks_new=max_rank)
     return u
 
 
-def solve_with_ame(A, b, **solver_options):
+def solve_with_amen(A, b, **solver_options):
     import tt
     from tt.amen import amen_solve
+    amen_options = dict(eps=1e-14, nswp=40, local_iters=2, verb=1)
+    amen_options.update(solver_options)
+    eps = amen_options['eps']
+    del amen_options['eps']
+
     A_ttpy = tt.matrix.from_list(A.to_ttpylist())
     b_ttpy = tt.vector.from_list(b.to_ttpylist())
     x0_ttpy = tt.ones(2, len(A))
-    x_ttpy = amen_solve(A_ttpy, b_ttpy, x0_ttpy, eps=1e-14, nswp=40, local_iters=2, verb=1)
+    x_ttpy = amen_solve(A_ttpy, b_ttpy, x0_ttpy, eps, **amen_options)
     return tm.TensorTrain.from_ttpylist(tt.vector.to_list(x_ttpy))
 
 
@@ -485,7 +494,6 @@ def get_gram_matrix_as_tt(L, basis='legendre'):
 
 def build_mass_matrix_in_nodal_basis(L):
     M = get_overlap_matrix_as_tt(L)
-    M.tensors[-1] = M.tensors[-1][...,None,:]
     G = get_gram_matrix_as_tt(L)
     return (M.copy().transpose() @ G @ M).squeeze().reapprox()
 
@@ -505,6 +513,29 @@ def build_laplace_matrix_2D(L):
     Mx = M.copy().expand_dims([1, 3])
     My = M.copy().expand_dims([0, 2])
     return (Ax * My + Ay * Mx).reshape_mode_indices([4,4]).reapprox(rel_error=1e-15)
+
+def get_L2_norm_1D(u):
+    L = len(u)
+    u = u.copy()
+    u.tensors.append(np.ones([1,1,1]))
+    G = get_gram_matrix_as_tt(L)
+    G.tensors[-1] = np.sqrt(G.tensors[-1])
+    M = get_overlap_matrix_as_tt(L)
+    v = (G @ M) @ u
+    return v.norm_squared() * (2 ** L)
+
+def get_L2_norm_2D(u):
+    L = len(u)
+    u = u.copy().reshape_mode_indices([4])
+    u.tensors.append(np.ones([1,1,1]))
+    G = get_gram_matrix_as_tt(L)
+    G.tensors[-1] = np.sqrt(G.tensors[-1])
+    M = get_overlap_matrix_as_tt(L)
+    GM = (G @ M)
+    GM = GM.copy().expand_dims([1,3]) * GM.copy().expand_dims([0,2])
+    GM.reshape_mode_indices([(4,4) for _ in range(L)] + [(4,1)])
+    v = GM @ u
+    return v.norm_squared() * (4 ** L)
 
 if __name__ == '__main__':
     phi = build_mass_matrix_in_nodal_basis(3)

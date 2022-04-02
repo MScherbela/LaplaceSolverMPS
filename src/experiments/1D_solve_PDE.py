@@ -4,7 +4,7 @@ import matplotlib.pyplot as plt
 from laplace_mps.utils import draw_vertical_grid, build_u_with_correct_boundary_conditions, get_f_from_u, evaluate_f_from_u, \
     eval_function, get_u_function_as_tt, get_example_u_1D, get_example_u_deriv_1D, get_example_f_1D
 
-L = 40
+L = 20
 h = 0.5**L
 plot_functions = True and (L <= 14)
 

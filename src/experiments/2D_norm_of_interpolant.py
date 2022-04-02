@@ -1,6 +1,6 @@
 import matplotlib.pyplot as plt
 from laplace_mps.utils import get_example_u_2D
-from laplace_mps.solver import build_2D_mass_matrix, build_laplace_matrix_2D
+from laplace_mps.solver import build_2D_mass_matrix, build_laplace_matrix_2D, get_L2_norm_2D
 import numpy as np
 
 #fx = (-3x^3 + 5x^2 -x)
@@ -8,22 +8,21 @@ import numpy as np
 refnorm_L2 = (1/15 + 3 / (16*np.pi**4) - 3 / (16 * np.pi**2)) * (67 / 210)
 refnorm_H1 = (2144*np.pi**6 + 5926*np.pi**4 + 7245 - 9255*np.pi**2)/(25200*np.pi**4)
 
-L_values = np.arange(3, 10)
+L_values = np.arange(3, 30)
 error_L2 = np.zeros_like(L_values, dtype=float)
 error_H1 = np.zeros_like(L_values, dtype=float)
 
-max_rank = 20
+max_rank = 40
 for i,L in enumerate(L_values):
     print(f"L = {L}")
     u = get_example_u_2D(L, basis='nodal')
     u = u.flatten_mode_indices().reapprox(ranks_new=max_rank)
-    mass_matrix = build_2D_mass_matrix(L)
+    # mass_matrix = build_2D_mass_matrix(L)
     A = build_laplace_matrix_2D(L)
-    Mf = (mass_matrix @ u).reapprox(ranks_new=max_rank)
-    Af = (A @ u).reapprox(ranks_new=max_rank)
+    Au = (A @ u).reapprox(ranks_new=max_rank)
 
-    L2_norm = (u @ Mf).squeeze().eval()
-    H1_norm = (u @ Af).squeeze().eval()
+    L2_norm = get_L2_norm_2D(u)
+    H1_norm = (u @ Au).squeeze().eval()
     error_L2[i] = L2_norm - refnorm_L2
     error_H1[i] = H1_norm - refnorm_H1
 

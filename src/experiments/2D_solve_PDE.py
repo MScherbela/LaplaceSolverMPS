@@ -6,7 +6,7 @@ from laplace_mps.utils import draw_vertical_grid, eval_function, get_example_u_2
 def imshow(ax, x):
     ax.imshow(x, cmap='bwr', clim=np.array([-1, 1]) * np.max(np.abs(x)), origin='lower', extent=[0, 1, 0, 1])
 
-L = 4
+L = 7
 h = 0.5**L
 plot_functions = True and (L <= 7)
 
@@ -14,8 +14,8 @@ max_rank = 60
 u_ref = get_example_u_2D(L, basis='nodal').flatten_mode_indices()
 f = get_example_f_2D(L).reapprox(ranks_new=max_rank)
 #
-u_solved = solve_PDE_2D_with_preconditioner(f)
-# u_solved = solve_PDE_2D(f)
+# u_solved = solve_PDE_2D_with_preconditioner(f)
+u_solved = solve_PDE_2D(f, eps=1e-10, nswp=20)
 residual = (u_ref - u_solved).reapprox(rel_error=1e-12)
 L2_residual = (residual @ residual).squeeze().eval()
 mean_squared_error = np.sqrt(L2_residual * h**2)

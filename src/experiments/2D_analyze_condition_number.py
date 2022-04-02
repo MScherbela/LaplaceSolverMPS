@@ -51,3 +51,5 @@ plt.xlabel("Nr of levels $L$")
 plt.ylabel("Condition number")
 plt.grid(alpha=0.5)
 plt.legend()
+
+plt.savefig(f"outputs/2D_condition_number.pdf", bbox_inches='tight')
