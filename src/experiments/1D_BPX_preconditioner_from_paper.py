@@ -118,15 +118,6 @@ K0_hat = mode_product(_get_N0_hat(), _get_P_hat())
 K1_hat = mode_product(_get_N1_hat(), _get_P_hat())
 K_10 = tensor_product(K1_hat, K0_hat)
 
-# Build Q_2D = (M' x M) C
-Qp_start = np.concatenate([Ab, strong_kronecker(Ab, W_10)], axis=-1)
-Qp_end = np.concatenate([np.zeros([16, 2, 1, 1]), K_10], axis=0)
-Qp_l = np.zeros([24, 4, 4, 24])
-Qp_l[:16, :, :, :16] = Ub
-Qp_l[:16, :, :, 16:] = strong_kronecker(Ub, W_10)
-Qp_l[16:, :, :, 16:] = Z_10
-Qp_2D = tm.TensorTrain([Qp_start] + [Qp_l.copy() for l in range(L)] + [Qp_end]).squeeze()
-
 # Build Qp_1D = M' C
 Qp_start = np.concatenate([Ab_hat, strong_kronecker(Ab_hat, W1_hat)], axis=-1)
 Qp_end = np.concatenate([np.zeros([4, 1, 1, 1]), K1_hat], axis=0)
@@ -156,6 +147,19 @@ Qpl_factors = [Ab_hat] + [Ub_hat.copy() for _ in range(l)] + [W1_hat] + [Z1_hat 
 Qpl = tm.TensorTrain(Qpl_factors).squeeze() * 2**(L - (L-l)) # missing a factor of 2**(0.5L)
 Ql_ref = get_bpx_Qt_term(L, l).transpose() * (2**l)
 Qpl_ref = get_bpx_Qp_term(L, l) * (2**l)
+
+
+# Build Q_2D = (M' x M) C
+Qp_start = np.concatenate([Ab, strong_kronecker(Ab, W_10)], axis=-1)
+Qp_end = np.concatenate([np.zeros([16, 2, 1, 1]), K_10], axis=0)
+Q_factors = []
+for l in range(L):
+    Qp_l = np.zeros([24, 4, 4, 24])
+    Qp_l[:16, :, :, :16] = Ub
+    Qp_l[:16, :, :, 16:] = strong_kronecker(Ub, W_10)
+    Qp_l[16:, :, :, 16:] = Z_10 / 2
+    Q_factors.append(Qp_l)
+Qp_2D = tm.TensorTrain([Qp_start] + Q_factors + [Qp_end]).squeeze()
 
 
 C_2D = get_BPX_preconditioner_2D(L)
