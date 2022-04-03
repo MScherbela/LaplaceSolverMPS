@@ -100,7 +100,7 @@ def get_BPX_preconditioner_2D(L):
     return C
 
 
-L = 4
+L = 5
 
 U_hat = _get_U_hat()
 Ub_hat = mode_product(U_hat, transpose_core(U_hat))
@@ -110,13 +110,12 @@ Ab = tensor_product(Ab_hat, Ab_hat)
 
 Z0_hat = mode_product(_get_Y0_hat(), transpose_core(_get_X_hat()))
 Z1_hat = mode_product(_get_Y1_hat(), transpose_core(_get_X_hat()))
-Z_10 = tensor_product(Z1_hat, Z0_hat)
 W1_hat = _get_W1_hat()
 W0_hat = _get_W0_hat()
-W_10 = tensor_product(W1_hat, W0_hat)
 K0_hat = mode_product(_get_N0_hat(), _get_P_hat())
 K1_hat = mode_product(_get_N1_hat(), _get_P_hat())
-K_10 = tensor_product(K1_hat, K0_hat)
+
+
 
 # Build Qp_1D = M' C
 Qp_start = np.concatenate([Ab_hat, strong_kronecker(Ab_hat, W1_hat)], axis=-1)
@@ -149,7 +148,10 @@ Ql_ref = get_bpx_Qt_term(L, l).transpose() * (2**l)
 Qpl_ref = get_bpx_Qp_term(L, l) * (2**l)
 
 
-# Build Q_2D = (M' x M) C
+# Build Qp_2D = (M' x M) C
+W_10 = tensor_product(W1_hat, W0_hat)
+Z_10 = tensor_product(Z1_hat, Z0_hat)
+K_10 = tensor_product(K1_hat, K0_hat)
 Qp_start = np.concatenate([Ab, strong_kronecker(Ab, W_10)], axis=-1)
 Qp_end = np.concatenate([np.zeros([16, 2, 1, 1]), K_10], axis=0)
 Q_factors = []
@@ -161,6 +163,21 @@ for l in range(L):
     Q_factors.append(Qp_l)
 Qp_2D = tm.TensorTrain([Qp_start] + Q_factors + [Qp_end]).squeeze()
 
+# Build Q_2D = (M x M) C
+W_00 = tensor_product(W0_hat, W0_hat)
+Z_00 = tensor_product(Z0_hat, Z0_hat)
+K_00 = tensor_product(K0_hat, K0_hat)
+Q_start = np.concatenate([Ab, strong_kronecker(Ab, W_00)], axis=-1)
+Q_end = np.concatenate([np.zeros([16, 4, 1, 1]), K_00], axis=0)
+Q_factors = []
+for l in range(L):
+    Q_l = np.zeros([32, 4, 4, 32])
+    Q_l[:16, :, :, :16] = Ub
+    Q_l[:16, :, :, 16:] = strong_kronecker(Ub, W_00)# * 0.5**l
+    Q_l[16:, :, :, 16:] = Z_00 / 2
+    Q_factors.append(Q_l / 2)
+Q_2D = tm.TensorTrain([Q_start] + Q_factors + [Q_end]).squeeze()
+
 
 C_2D = get_BPX_preconditioner_2D(L)
 C_2D_ref = get_bpx_preconditioner_by_sum_2D(L)
@@ -169,11 +186,13 @@ C_2D_ref = get_bpx_preconditioner_by_sum_2D(L)
 # Build naive reference as (D x M) * C
 C_expanded = C_2D.copy()
 C_expanded.tensors.append(np.ones([1,1,1,1]))
-Dx = get_derivative_matrix_as_tt(L)
-Dx.tensors.append(np.ones([1,1,1,1]))
-My = get_overlap_matrix_as_tt(L)
-Qp_2D_ref = (Dx.copy().expand_dims([1,3]) * My.copy().expand_dims([0,2])).reshape_mode_indices([(4,4) for _ in range(L)] + [(2,1)])
+D = get_derivative_matrix_as_tt(L)
+D.tensors.append(np.ones([1,1,1,1]))
+M = get_overlap_matrix_as_tt(L)
+Qp_2D_ref = (D.copy().expand_dims([1,3]) * M.copy().expand_dims([0,2])).reshape_mode_indices([(4,4) for _ in range(L)] + [(2,1)])
 Qp_2D_ref = Qp_2D_ref @ C_expanded
+Q_2D_ref = (M.copy().expand_dims([1,3]) * M.copy().expand_dims([0,2])).reshape_mode_indices([(4,4) for _ in range(L)] + [(4,1)])
+Q_2D_ref = Q_2D_ref @ C_expanded
 
 Qp_1D_ref = get_bpx_Qp(L)
 Q_1D_ref = get_bpx_Qt(L).transpose()
@@ -195,6 +214,7 @@ def print_compare(A, B, labelA, labelB):
 # print_compare(Q_1D_ref, Q_1D, "Q_1D old", "Q_1D new")
 # print_compare(Qp_1D_ref, Qp_1D, "Qp_1D old", "Qp_1D new")
 print_compare(Qp_2D_ref, Qp_2D, "Qp_2D old", "Qp_2D new")
+print_compare(Q_2D_ref, Q_2D, "Q_2D old", "Q_2D new")
 
 
 
