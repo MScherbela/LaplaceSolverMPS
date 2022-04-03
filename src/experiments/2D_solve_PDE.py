@@ -16,7 +16,7 @@ u_ref = get_example_u_2D(L, basis='nodal').flatten_mode_indices()
 f = get_example_f_2D(L).reapprox(ranks_new=max_rank)
 #
 # u_solved = solve_PDE_2D_with_preconditioner(f)
-u_solved = solve_PDE_2D(f, eps=1e-10, nswp=20)
+u_solved = solve_PDE_2D_with_preconditioner(f, eps=1e-10, nswp=20)
 residual = (u_ref - u_solved).reapprox(rel_error=1e-12)
 L2_residual = (residual @ residual).squeeze().eval()
 mean_squared_error = np.sqrt(L2_residual * h**2)

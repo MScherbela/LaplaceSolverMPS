@@ -225,12 +225,12 @@ def solve_PDE_1D_with_preconditioner(f, max_rank=60, **solver_options):
 def solve_PDE_2D_with_preconditioner(f, max_rank=60, **solver_options):
     print("Building LHS and RHS...")
     L = len(f) - 1
-    # f = f.copy().flatten_mode_indices()
+    f = f.copy().flatten_mode_indices()
 
-    B = get_laplace_BPX_2D()
+    B = get_laplace_BPX_2D(L)
     B.reapprox(ranks_new=max_rank)
-    b = get_rhs_matrix_BPX_2D(L) @ f
-    # b = (get_rhs_matrix_bpx_by_sum_2D(L) @ f).squeeze()
+    b = (get_rhs_matrix_BPX_2D(L) @ f).squeeze()
+    b.reapprox(ranks_new=max_rank)
 
     print("Starting solver....")
     v = solve_with_amen(B, b, **solver_options)

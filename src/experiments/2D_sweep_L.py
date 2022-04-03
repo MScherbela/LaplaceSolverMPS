@@ -4,7 +4,7 @@ import matplotlib.pyplot as plt
 from laplace_mps.utils import build_u_with_correct_boundary_conditions, get_example_u_2D, get_example_f_2D, get_example_f_1D, \
     evaluate_nodal_basis
 
-L_values = np.arange(2, 11)
+L_values = np.arange(2, 11, 2)
 error_L2 = [np.ones(len(L_values))*np.nan, np.ones(len(L_values))*np.nan]
 error_H1 = [np.ones(len(L_values))*np.nan, np.ones(len(L_values))*np.nan]
 error_of_L2_norm = [np.ones(len(L_values))*np.nan, np.ones(len(L_values))*np.nan]
@@ -13,7 +13,7 @@ error_of_H1_norm = [np.ones(len(L_values))*np.nan, np.ones(len(L_values))*np.nan
 refnorm_L2 = (1/15 + 3 / (16*np.pi**4) - 3 / (16 * np.pi**2)) * (67 / 210)
 refnorm_H1 = (2144*np.pi**6 + 5926*np.pi**4 + 7245 - 9255*np.pi**2)/(25200*np.pi**4)
 
-for ind_solver, solver in enumerate([solve_PDE_2D_with_preconditioner, solve_PDE_2D]):
+for ind_solver, solver in enumerate([solve_PDE_2D_with_preconditioner, solve_PDE_2D][:1]):
     for ind_L, L in enumerate(L_values):
         if (ind_solver == 1) and L > 10:
             break
@@ -21,7 +21,7 @@ for ind_solver, solver in enumerate([solve_PDE_2D_with_preconditioner, solve_PDE
         h = 0.5**(2*L)
         u_ref = get_example_u_2D(L, basis='nodal').reshape_mode_indices([4])
         f = get_example_f_2D(L).reapprox(rel_error=1e-15)
-        u_solved = solver(f, eps=1e-10, nswp=20)
+        u_solved = solver(f, eps=1e-13, nswp=60, max_rank=400)
         print(f"L = {L}: Calculating accuracy")
 
         delta_u = (u_solved - u_ref).reshape_mode_indices([4]).reapprox(rel_error=1e-6, ranks_new=20)

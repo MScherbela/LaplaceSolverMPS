@@ -3,6 +3,7 @@ import numpy
 import numpy as np
 import numpy.polynomial.polynomial
 import laplace_mps.tensormethods as tm
+import matplotlib.pyplot as plt
 
 REL_ERROR = 1e-15
 
