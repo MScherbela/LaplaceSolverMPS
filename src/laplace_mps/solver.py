@@ -1,27 +1,6 @@
-import matplotlib.pyplot as plt
-import numpy
 import numpy as np
 import laplace_mps.tensormethods as tm
-
-def _get_legendre_zoom_in_tensor(degree):
-    n = degree + 1
-    tensor = np.zeros([n,2,n])
-    for i in range(n):
-        coeff = np.zeros(n)
-        coeff[i] = 1
-        p = numpy.polynomial.legendre.Legendre(coeff)
-        p_left = p.convert(domain=[-1, 0], kind=numpy.polynomial.legendre.Legendre, window=[-1, 1])
-        p_right = p.convert(domain=[0, 1], kind=numpy.polynomial.legendre.Legendre, window=[-1, 1])
-        tensor[i,0,:len(p_left.coef)] = p_left.coef
-        tensor[i,1,:len(p_right.coef)] = p_right.coef
-    return tensor
-
-
-def _polynomial_to_legendre(coeffs):
-    """Convert a coefficients of an algebraic polynomial of degree 2 and calculate the corresponding coefficients of a Legendre polynomial"""
-    return np.array([[1, 1/2, 1/3],
-                     [0, 1/2, 1/2],
-                     [0, 0, 1/6]]) @ np.array(coeffs)
+from laplace_mps.bpx import get_laplace_BPX_2D, get_BPX_preconditioner_2D, get_rhs_matrix_BPX_2D
 
 
 def _get_gram_matrix_legendre():
@@ -60,7 +39,7 @@ def get_rhs_matrix_as_tt_2D(L):
     R.tensors[-1] = R.tensors[-1].reshape([-1, 4, 1])
     return R
 
-def get_rhs_matrix_bpx_2D(L):
+def get_rhs_matrix_bpx_by_sum_2D(L):
     max_rank = 80
     rel_error = 1e-14
     R_2D_bpx = tm.zeros([(4, 4) for _ in range(L)] + [(4,)])
@@ -72,6 +51,7 @@ def get_rhs_matrix_bpx_2D(L):
         R_2D_bpx.reapprox(ranks_new=max_rank, rel_error=rel_error)
     # for i in range(L):
     #     R_2D_bpx.tensors[i] = R_2D_bpx.tensors[i] * 4
+    R_2D_bpx.tensors[-1] = R_2D_bpx.tensors[-1][:, None, :, :]
     return R_2D_bpx.squeeze()
 
 
@@ -80,71 +60,6 @@ def to_legendre_basis(t: tm.TensorTrain):
     U = np.array([[1, -1], [1, 1]]) / 2  # convert from left/right-basis to Legendre (P0, P1) basis
     t.tensors[-1] = (t.tensors[-1].squeeze(-1) @ U)[...,None]
     return t
-
-
-def get_polynomial_as_tt(coeffs, L):
-    """
-    coeffs are the polynomial coeffs, starting with the x^0 coeff
-    """
-    legendre_coeffs = numpy.polynomial.Polynomial(coeffs).convert(kind=numpy.polynomial.legendre.Legendre, domain=[0,1]).coef
-    U_l = _get_legendre_zoom_in_tensor(len(coeffs)-1)
-
-    poly_value_left = np.ones(len(coeffs))
-    poly_value_left[1::2] *= -1
-    poly_values_right = np.ones(len(coeffs))
-
-    U_first = legendre_coeffs[None,:]
-    U_last = np.array([poly_value_left, poly_values_right]).T[...,None]
-
-    tensors = [U_l for _ in range(L)]
-    tensors[0] = np.tensordot(U_first, tensors[0], axes=[-1,0])
-    tensors.append(U_last)
-    return tm.TensorTrain(tensors)
-
-
-def get_trig_function_as_tt(coeffs, L):
-    a,b,nu = coeffs
-    s,c = np.sin(nu * np.pi), np.cos(nu * np.pi)
-    C_0 = np.array([[c,-s],[s,c]])
-    C_0 = np.array([a,b]) @ C_0
-
-    C_tensors = [C_0.reshape([1,1,-1])]
-    for l in range(1, L+1):
-        C_l = []
-        for i in range(2):
-            phase = 0.5**l * np.pi * nu * (2*i-1)
-            s, c = np.sin(phase), np.cos(phase)
-            C_l.append(np.array([[c,-s],[s,c]]))
-        C_l = np.stack(C_l, axis=1)
-        C_tensors.append(C_l)
-    C_final = np.array([[c, c],[-s,s]])[...,None]
-    C_tensors.append(C_final)
-    return tm.TensorTrain(C_tensors).squeeze()
-
-
-def evaluate_nodal_basis(tt: tm.TensorTrain, s: np.array, basis='corner'):
-    s = np.array(s)
-    output = tt.copy()
-    if s.ndim == 1:
-        # Approximation of 1D function
-        assert tt[-1].shape[1] == 2, "Tensor to be evaluated must be in nodal-basis, i.e. have 2 basis elements"
-        if basis == 'corner':
-            final_factor = np.array([(1-s)/2, (1+s)/2])
-        elif basis == 'legendre':
-            final_factor = np.array([np.ones_like(s), 2*s - 1])
-        else:
-            raise NotImplementedError(f"Unknown basis {basis}")
-        output.tensors[-1] = (output.tensors[-1].squeeze(-1) @ final_factor)[..., None]
-
-    elif (s.ndim == 2) and s.shape[0] == 2:
-        # Approximation of 2D function
-        assert tt[-1].shape[1:3] == (2,2)
-        if basis == 'corner':
-            final_factor = np.array([(1-s[0])*(1-s[1]), (1-s[0])*(1+s[1]), (1+s[0])*(1-s[1]), (1+s[0])*(1+s[1])]) / 4
-            output.tensors[-1] = (output.tensors[-1].reshape([-1, 4]) @ final_factor)[..., None]
-        else:
-            raise NotImplementedError(f"Unknown basis {basis}")
-    return output
 
 
 def _get_refinement_tensor():
@@ -195,7 +110,7 @@ def get_laplace_bpx(L):
     B.reapprox(rel_error=1e-15)
     return B
 
-def get_laplace_bpx_2D(L, max_rank=70):
+def get_laplace_bpx_2D_by_sum(L, max_rank=70):
     Qp_matrices = [get_bpx_Qp_term(L, l) for l in range(0, L + 1)]
     Qt_matrices = [get_bpx_Qt_term(L, l) for l in range(0, L + 1)]
     for l in range(1, L + 1):
@@ -310,22 +225,17 @@ def solve_PDE_1D_with_preconditioner(f, max_rank=60, **solver_options):
 def solve_PDE_2D_with_preconditioner(f, max_rank=60, **solver_options):
     print("Building LHS and RHS...")
     L = len(f) - 1
-    f = f.copy().flatten_mode_indices()
-    # g = (get_rhs_matrix_as_tt_2D(L) @ f).squeeze().reapprox(rel_error=1e-12)
-    # A = build_laplace_matrix_2D(L).reapprox(ranks_new=max_rank)
-    # for i in range(len(A)):
-    #     g.tensors[i] /= 4
+    # f = f.copy().flatten_mode_indices()
 
-    # AC = (A @ C).reapprox(ranks_new=max_rank)
-    # B = (C @ AC).reapprox(ranks_new=max_rank)
-    # b = (C @ g).reapprox(ranks_new=max_rank)
-    B = get_laplace_bpx_2D(L)
-    b = (get_rhs_matrix_bpx_2D(L) @ f).squeeze()
+    B = get_laplace_BPX_2D()
+    B.reapprox(ranks_new=max_rank)
+    b = get_rhs_matrix_BPX_2D(L) @ f
+    # b = (get_rhs_matrix_bpx_by_sum_2D(L) @ f).squeeze()
 
     print("Starting solver....")
     v = solve_with_amen(B, b, **solver_options)
     v.reapprox(ranks_new=max_rank)
-    C = get_bpx_preconditioner_by_sum_2D(L).reapprox(rel_error=1e-12)
+    C = get_BPX_preconditioner_2D(L)
     u = (C @ v).reapprox(ranks_new=max_rank)
     return u
 

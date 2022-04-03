@@ -1,7 +1,8 @@
-from laplace_mps.solver import evaluate_nodal_basis, solve_PDE_2D, solve_PDE_2D_with_preconditioner
+from laplace_mps.solver import solve_PDE_2D, solve_PDE_2D_with_preconditioner
 import numpy as np
 import matplotlib.pyplot as plt
-from laplace_mps.utils import draw_vertical_grid, eval_function, get_example_u_2D, get_example_f_2D
+from laplace_mps.utils import draw_vertical_grid, eval_function, get_example_u_2D, get_example_f_2D, evaluate_nodal_basis
+
 
 def imshow(ax, x):
     ax.imshow(x, cmap='bwr', clim=np.array([-1, 1]) * np.max(np.abs(x)), origin='lower', extent=[0, 1, 0, 1])

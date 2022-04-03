@@ -1,8 +1,8 @@
-from laplace_mps.solver import evaluate_nodal_basis, solve_PDE_1D_with_preconditioner, solve_PDE_1D, build_mass_matrix_in_nodal_basis, get_L2_norm_1D
+from laplace_mps.solver import solve_PDE_1D_with_preconditioner, solve_PDE_1D, build_mass_matrix_in_nodal_basis, get_L2_norm_1D
 import numpy as np
 import matplotlib.pyplot as plt
-from laplace_mps.utils import build_u_with_correct_boundary_conditions, get_example_u_1D, get_example_u_deriv_1D, get_example_f_1D
-
+from laplace_mps.utils import build_u_with_correct_boundary_conditions, get_example_u_1D, get_example_u_deriv_1D, get_example_f_1D, \
+    evaluate_nodal_basis
 
 L_values = np.arange(3, 30)
 error_L2 = [np.ones(len(L_values))*np.nan, np.ones(len(L_values))*np.nan]

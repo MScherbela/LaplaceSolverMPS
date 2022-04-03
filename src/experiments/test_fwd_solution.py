@@ -3,6 +3,8 @@ import laplace_mps.solver as solver
 from numpy.polynomial.polynomial import Polynomial
 import numpy as np
 import matplotlib.pyplot as plt
+
+import laplace_mps.utils
 from laplace_mps.utils import draw_vertical_grid
 import time
 
@@ -28,9 +30,9 @@ x_right = np.arange(1, 2**L+1) * h
 s_values = np.linspace(-1, 1, 5)
 x_values = (x_right[:,None] + (s_values-1)* h / 2).flatten()
 
-f = solver.get_polynomial_as_tt(poly_f.coef, L)
-u = solver.get_polynomial_as_tt(poly_u.coef, L)
-u_right = solver.evaluate_nodal_basis(u, [1.0]).squeeze()
+f = laplace_mps.utils.get_polynomial_as_tt(poly_f.coef, L)
+u = laplace_mps.utils.get_polynomial_as_tt(poly_u.coef, L)
+u_right = laplace_mps.utils.evaluate_nodal_basis(u, [1.0]).squeeze()
 lhs = A @ u_right
 rhs = rhs_matrix @ f
 
@@ -80,7 +82,7 @@ ax1.legend()
 
 
 for (func, label, color) in zip([f, u, u_solved], ['f', 'u (ground-truth)', 'u solved'], ['gray', 'k', 'C0']):
-    func_eval = solver.evaluate_nodal_basis(func, s_values).eval().flatten()
+    func_eval = laplace_mps.utils.evaluate_nodal_basis(func, s_values).eval().flatten()
     ax2.plot(x_values, func_eval, label=label, color=color)
 ax2.legend()
 

@@ -1,13 +1,8 @@
 from typing import List
-
-import matplotlib.pyplot as plt
+import numpy
 import numpy as np
 import numpy.polynomial.polynomial
-import matplotlib.pyplot as plt
-from numpy.polynomial import Polynomial
-
-from laplace_mps import tensormethods as tm
-from laplace_mps.solver import get_trig_function_as_tt, get_polynomial_as_tt, evaluate_nodal_basis
+import laplace_mps.tensormethods as tm
 
 REL_ERROR = 1e-15
 
@@ -158,3 +153,87 @@ def get_example_f_2D(L):
 
     f = ux.expand_dims(1) * uy2.expand_dims(0) + ux2.expand_dims(1) * uy.expand_dims(0)
     return -f.reapprox(rel_error=REL_ERROR)
+
+def kronecker_prod_2D(A, B):
+    C = A.copy().expand_dims([1,3]) * B.copy().expand_dims([0,2])
+    new_shapes = [(U.shape[1]*U.shape[2], U.shape[3]*U.shape[4]) for U in C]
+    return C.reshape_mode_indices(new_shapes)
+
+
+def get_polynomial_as_tt(coeffs, L):
+    """
+    coeffs are the polynomial coeffs, starting with the x^0 coeff
+    """
+    legendre_coeffs = numpy.polynomial.Polynomial(coeffs).convert(kind=numpy.polynomial.legendre.Legendre, domain=[0,1]).coef
+    U_l = _get_legendre_zoom_in_tensor(len(coeffs)-1)
+
+    poly_value_left = np.ones(len(coeffs))
+    poly_value_left[1::2] *= -1
+    poly_values_right = np.ones(len(coeffs))
+
+    U_first = legendre_coeffs[None,:]
+    U_last = np.array([poly_value_left, poly_values_right]).T[...,None]
+
+    tensors = [U_l for _ in range(L)]
+    tensors[0] = np.tensordot(U_first, tensors[0], axes=[-1,0])
+    tensors.append(U_last)
+    return tm.TensorTrain(tensors)
+
+
+def get_trig_function_as_tt(coeffs, L):
+    a,b,nu = coeffs
+    s,c = np.sin(nu * np.pi), np.cos(nu * np.pi)
+    C_0 = np.array([[c,-s],[s,c]])
+    C_0 = np.array([a,b]) @ C_0
+
+    C_tensors = [C_0.reshape([1,1,-1])]
+    for l in range(1, L+1):
+        C_l = []
+        for i in range(2):
+            phase = 0.5**l * np.pi * nu * (2*i-1)
+            s, c = np.sin(phase), np.cos(phase)
+            C_l.append(np.array([[c,-s],[s,c]]))
+        C_l = np.stack(C_l, axis=1)
+        C_tensors.append(C_l)
+    C_final = np.array([[c, c],[-s,s]])[...,None]
+    C_tensors.append(C_final)
+    return tm.TensorTrain(C_tensors).squeeze()
+
+
+def evaluate_nodal_basis(tt: tm.TensorTrain, s: np.array, basis='corner'):
+    s = np.array(s)
+    output = tt.copy()
+    if s.ndim == 1:
+        # Approximation of 1D function
+        assert tt[-1].shape[1] == 2, "Tensor to be evaluated must be in nodal-basis, i.e. have 2 basis elements"
+        if basis == 'corner':
+            final_factor = np.array([(1-s)/2, (1+s)/2])
+        elif basis == 'legendre':
+            final_factor = np.array([np.ones_like(s), 2*s - 1])
+        else:
+            raise NotImplementedError(f"Unknown basis {basis}")
+        output.tensors[-1] = (output.tensors[-1].squeeze(-1) @ final_factor)[..., None]
+
+    elif (s.ndim == 2) and s.shape[0] == 2:
+        # Approximation of 2D function
+        assert tt[-1].shape[1:3] == (2,2)
+        if basis == 'corner':
+            final_factor = np.array([(1-s[0])*(1-s[1]), (1-s[0])*(1+s[1]), (1+s[0])*(1-s[1]), (1+s[0])*(1+s[1])]) / 4
+            output.tensors[-1] = (output.tensors[-1].reshape([-1, 4]) @ final_factor)[..., None]
+        else:
+            raise NotImplementedError(f"Unknown basis {basis}")
+    return output
+
+
+def _get_legendre_zoom_in_tensor(degree):
+    n = degree + 1
+    tensor = np.zeros([n,2,n])
+    for i in range(n):
+        coeff = np.zeros(n)
+        coeff[i] = 1
+        p = numpy.polynomial.legendre.Legendre(coeff)
+        p_left = p.convert(domain=[-1, 0], kind=numpy.polynomial.legendre.Legendre, window=[-1, 1])
+        p_right = p.convert(domain=[0, 1], kind=numpy.polynomial.legendre.Legendre, window=[-1, 1])
+        tensor[i,0,:len(p_left.coef)] = p_left.coef
+        tensor[i,1,:len(p_right.coef)] = p_right.coef
+    return tensor

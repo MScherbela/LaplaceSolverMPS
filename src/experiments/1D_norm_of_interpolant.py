@@ -1,7 +1,7 @@
 import numpy as np
 import matplotlib.pyplot as plt
-from laplace_mps.utils import get_polynomial_as_tt, get_trig_function_as_tt
-from laplace_mps.solver import evaluate_nodal_basis, _get_gram_matrix_legendre, \
+from laplace_mps.utils import get_polynomial_as_tt, get_trig_function_as_tt, evaluate_nodal_basis
+from laplace_mps.solver import _get_gram_matrix_legendre, \
     get_laplace_matrix_as_tt, get_derivative_matrix_as_tt, get_L2_norm_1D
 from laplace_mps.tensormethods import TensorTrain
 

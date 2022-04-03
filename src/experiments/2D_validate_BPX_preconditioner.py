@@ -1,6 +1,6 @@
 import numpy as np
 import matplotlib.pyplot as plt
-from laplace_mps.solver import build_laplace_matrix_2D, get_bpx_preconditioner_by_sum_2D, get_laplace_bpx_2D, get_rhs_matrix_as_tt_2D, get_bpx_Qt_term, get_gram_matrix_as_tt
+from laplace_mps.solver import build_laplace_matrix_2D, get_bpx_preconditioner_by_sum_2D, get_laplace_bpx_2D_by_sum, get_rhs_matrix_as_tt_2D, get_bpx_Qt_term, get_gram_matrix_as_tt
 import laplace_mps.tensormethods as tm
 
 def get_R2D_bpx_naive(C):
@@ -15,7 +15,7 @@ max_rank = 80
 L = 3
 
 # LHS
-B = get_laplace_bpx_2D(L)
+B = get_laplace_bpx_2D_by_sum(L)
 A = build_laplace_matrix_2D(L).reapprox(rel_error=rel_error)
 C = get_bpx_preconditioner_by_sum_2D(L).reapprox(rel_error=rel_error)
 B_naive = (C @ A @ C).reapprox(rel_error=rel_error)
