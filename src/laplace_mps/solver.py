@@ -168,7 +168,7 @@ def get_overlap_matrix_as_tt(L):
     return tm.TensorTrain(tensors)
 
 def get_derivative_matrix_as_tt(L):
-    """Returns a tensor-train representing the matris M' which computes the first derivatives of a function in a hat-like basis."""
+    """Returns a tensor-train representing the matrix M' which computes the first derivatives of a function in a hat-like basis."""
     M = _get_refinement_tensor() * 2
     M_first = np.array([1, 0]).reshape([1, 2])
     M_last = np.array([1,-1]).reshape(2, 1)
