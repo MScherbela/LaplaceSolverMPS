@@ -5,6 +5,8 @@ import numpy.polynomial.polynomial
 import laplace_mps.tensormethods as tm
 import matplotlib.pyplot as plt
 
+from laplace_mps import tensormethods as tm
+
 REL_ERROR = 1e-15
 
 def eval_poly(x, coeffs):
@@ -238,3 +240,16 @@ def _get_legendre_zoom_in_tensor(degree):
         tensor[i,0,:len(p_left.coef)] = p_left.coef
         tensor[i,1,:len(p_right.coef)] = p_right.coef
     return tensor
+
+
+def _get_gram_matrix_tt(L):
+    gram_matrix = np.diag([2,2/3])
+    G = tm.TensorTrain([np.eye(2)[None, :, :, None] for _ in range(L)] + [gram_matrix.reshape([1,2,2,1])])
+    return G
+
+
+def _get_identy_as_tt(L, tailing_eye=False):
+    I = tm.TensorTrain([np.eye(2)[None, :, :, None] for _ in range(L)] )
+    if tailing_eye:
+        I.tensors.append(np.eye(1)[None, :, :, None])
+    return I

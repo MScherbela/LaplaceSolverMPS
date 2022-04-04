@@ -1,6 +1,7 @@
 import numpy as np
 import laplace_mps.tensormethods as tm
-from laplace_mps.utils import kronecker_prod_2D
+from laplace_mps.utils import kronecker_prod_2D, _get_gram_matrix_tt
+
 
 def mode_product(A,B):
     shape_out = (A.shape[0]*B.shape[0], A.shape[1], B.shape[2], A.shape[-1]*B.shape[-1])
@@ -109,7 +110,7 @@ def get_BPX_preconditioner_2D(L):
     C = tm.TensorTrain([C_start] + C_factors + [C_end]).squeeze()
     return C
 
-def get_BPX_Qp_2D(L):
+def get_BPX_Qp_2D(L, deriv='x'):
     Ub = tensor_product(_get_Ub_hat(), _get_Ub_hat())
     Ab = tensor_product(_get_Ab_hat(), _get_Ab_hat())
     W_10 = tensor_product(_get_W1_hat(), _get_W0_hat())
@@ -125,6 +126,15 @@ def get_BPX_Qp_2D(L):
         Qp_l[16:, :, :, 16:] = Z_10 / 2
         Q_factors.append(Qp_l)
     Qp_2D = tm.TensorTrain([Qp_start] + Q_factors + [Qp_end]).squeeze()
+    if deriv == 'x':
+        pass
+    elif deriv == 'y':
+        Qp_2D.reshape_mode_indices([(2, 2, 2, 2) for _ in range(L)] + [(1, 2, 1, 1)])
+        for i, U in enumerate(Qp_2D):
+            Qp_2D.tensors[i] = np.transpose(U, [0, 2, 1, 4, 3, 5])
+        Qp_2D.reshape_mode_indices([(4, 4) for _ in range(L)] + [(2, 1)])
+    else:
+        raise ValueError("Unknown axis")
     return Qp_2D
 
 def get_BPX_Q_2D(L):
@@ -145,19 +155,10 @@ def get_BPX_Q_2D(L):
     Q_2D = tm.TensorTrain([Q_start] + Q_factors + [Q_end]).squeeze()
     return Q_2D
 
-def _get_gram_matrix_tt(L):
-    gram_matrix = np.diag([2,2/3])
-    G = tm.TensorTrain([np.eye(2)[None, :, :, None] for _ in range(L)] + [gram_matrix.reshape([1,2,2,1])])
-    return G
-
 
 def get_laplace_BPX_2D(L):
-    DxMyC = get_BPX_Qp_2D(L)
-    DyMxC = DxMyC.copy()
-    DyMxC.reshape_mode_indices([(2,2,2,2) for _ in range(L)] + [(1,2,1,1)])
-    for i,U in enumerate(DyMxC):
-        DyMxC.tensors[i] = np.transpose(U, [0, 2,1, 4,3, 5])
-    DyMxC.reshape_mode_indices([(4,4) for _ in range(L)] + [(2,1)])
+    DxMyC = get_BPX_Qp_2D(L, 'x')
+    DyMxC = get_BPX_Qp_2D(L, 'y')
 
     I = tm.TensorTrain([np.eye(2)[None, :, :, None] for _ in range(L)] + [np.eye(1)[None, :, :, None]])
     G = _get_gram_matrix_tt(L) * 2
@@ -183,7 +184,7 @@ def get_rhs_matrix_BPX_2D(L):
 
 
 if __name__ == '__main__':
-    L = 5
+    L = 8
     B = get_laplace_BPX_2D(L)
-    B.reapprox(ranks_new=100)
+    B.reapprox(ranks_new=400, rel_error=1e-15)
     print(B.shapes)

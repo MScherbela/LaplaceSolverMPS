@@ -1,4 +1,5 @@
-from laplace_mps.solver import build_laplace_matrix_2D, get_bpx_preconditioner_by_sum_2D, get_bpx_preconditioner
+from laplace_mps.solver import build_laplace_matrix_2D, get_bpx_preconditioner
+from laplace_mps.bpx import get_laplace_BPX_2D, get_BPX_preconditioner_2D
 import numpy as np
 import matplotlib.pyplot as plt
 
@@ -19,13 +20,14 @@ L_values = np.arange(2, 6)
 for L in L_values:
     print(L)
     A = build_laplace_matrix_2D(L)
-    C = get_bpx_preconditioner_by_sum_2D(L)
+    C = get_BPX_preconditioner_2D(L)
     C_prod = get_bpx_preconditioner_as_product_2D(L)
-    AC = (A @ C).reapprox(rel_error=rel_error)
-    A_bpx = (C @ AC).reapprox(rel_error=rel_error)
+    # AC = (A @ C).reapprox(rel_error=rel_error)
+    # A_bpx = (C @ AC).reapprox(rel_error=rel_error)
+    A_bpx = get_laplace_BPX_2D(L)
 
     AC_prod = (A @ C_prod).reapprox(rel_error=rel_error)
-    A_bpx_prod = (C_prod @ AC).reapprox(rel_error=rel_error)
+    A_bpx_prod = (C_prod @ AC_prod).reapprox(rel_error=rel_error)
 
     A_eval = A.evalm()
     A_bpx_eval = A_bpx.evalm()

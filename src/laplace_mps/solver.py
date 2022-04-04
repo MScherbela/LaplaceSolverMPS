@@ -1,6 +1,6 @@
 import numpy as np
 import laplace_mps.tensormethods as tm
-from laplace_mps.bpx import get_laplace_BPX_2D, get_BPX_preconditioner_2D, get_rhs_matrix_BPX_2D
+from laplace_mps.bpx import get_laplace_BPX_2D, get_BPX_preconditioner_2D, get_rhs_matrix_BPX_2D, get_BPX_Qp_2D
 
 
 def _get_gram_matrix_legendre():
@@ -226,18 +226,26 @@ def solve_PDE_2D_with_preconditioner(f, max_rank=60, **solver_options):
     print("Building LHS and RHS...")
     L = len(f) - 1
     f = f.copy().flatten_mode_indices()
+    rel_error = solver_options.get('eps', 1e-14)
 
     B = get_laplace_BPX_2D(L)
-    B.reapprox(ranks_new=max_rank)
+    B.reapprox(ranks_new=max_rank, rel_error=rel_error)
     b = (get_rhs_matrix_BPX_2D(L) @ f).squeeze()
-    b.reapprox(ranks_new=max_rank)
+    b.reapprox(ranks_new=max_rank, rel_error=rel_error)
+    print("Ranks B: ", B.ranks)
+    print("Ranks b: ", b.ranks)
+
 
     print("Starting solver....")
     v = solve_with_amen(B, b, **solver_options)
-    v.reapprox(ranks_new=max_rank)
+    v.reapprox(ranks_new=max_rank, rel_error=rel_error)
     C = get_BPX_preconditioner_2D(L)
-    u = (C @ v).reapprox(ranks_new=max_rank)
-    return u
+    u = (C @ v).reapprox(ranks_new=max_rank, rel_error=rel_error)
+    v.tensors.append(np.ones([1,1,1,1]))
+    Dx = get_BPX_Qp_2D(L, 'x') @ v
+    Dy = get_BPX_Qp_2D(L, 'y') @ v
+
+    return u, Dx, Dy
 
 
 def solve_with_amen(A, b, **solver_options):
