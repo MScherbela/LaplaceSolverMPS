@@ -4,7 +4,7 @@ import matplotlib.pyplot as plt
 from laplace_mps.utils import build_u_with_correct_boundary_conditions, get_example_u_2D, get_example_f_2D, get_example_f_1D, \
     evaluate_nodal_basis, _get_gram_matrix_tt, _get_identy_as_tt, kronecker_prod_2D
 
-L_values = np.arange(2, 12)
+L_values = np.arange(2, 20)
 error_L2 = [np.ones(len(L_values))*np.nan, np.ones(len(L_values))*np.nan]
 error_H1 = [np.ones(len(L_values))*np.nan, np.ones(len(L_values))*np.nan]
 error_of_L2_norm = [np.ones(len(L_values))*np.nan, np.ones(len(L_values))*np.nan]
@@ -13,15 +13,15 @@ error_of_H1_norm = [np.ones(len(L_values))*np.nan, np.ones(len(L_values))*np.nan
 refnorm_L2 = (1/15 + 3 / (16*np.pi**4) - 3 / (16 * np.pi**2)) * (67 / 210)
 refnorm_H1 = (2144*np.pi**6 + 5926*np.pi**4 + 7245 - 9255*np.pi**2)/(25200*np.pi**4)
 
-rel_error = 1e-10
-for ind_solver, solver in enumerate([solve_PDE_2D_with_preconditioner, solve_PDE_2D][:1]):
+rel_error = 1e-12
+for ind_solver, solver in enumerate([solve_PDE_2D_with_preconditioner, solve_PDE_2D]):
     for ind_L, L in enumerate(L_values):
         if (ind_solver == 1) and L > 10:
             break
         print(f"L = {L}")
         u_ref = get_example_u_2D(L, basis='nodal').reshape_mode_indices([4])
         f = get_example_f_2D(L).reapprox(rel_error=rel_error)
-        u_solved, DuDx, DuDy = solver(f, eps=rel_error, nswp=50, max_rank=200)
+        u_solved, DuDx, DuDy = solver(f, eps=rel_error, nswp=400, max_rank=200)
         print(f"L = {L}: Calculating accuracy")
 
         # |u-u0|L2
