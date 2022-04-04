@@ -1,3 +1,4 @@
+print("Starting 2D_sweep_L.py")
 from laplace_mps.solver import solve_PDE_2D_with_preconditioner, solve_PDE_2D, build_2D_mass_matrix, get_L2_norm_2D
 import numpy as np
 import matplotlib.pyplot as plt
