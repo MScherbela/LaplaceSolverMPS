@@ -1,3 +1,5 @@
+import os
+
 print("Starting 2D_sweep_L.py")
 from laplace_mps.solver import solve_PDE_2D_with_preconditioner, solve_PDE_2D, build_2D_mass_matrix, get_L2_norm_2D
 import numpy as np
@@ -55,6 +57,10 @@ for ind_solver, (is_bpx, solver) in enumerate(zip([True, False], [solve_PDE_2D_w
         # |u|L2 - |u0|L2
         error_of_L2_norm[ind_solver][ind_L] = get_L2_norm_2D(u_solved) - refnorm_L2
         print(f"Error of L2 norm: {error_of_L2_norm[ind_solver][ind_L]:.4e}")
+
+
+if os.getlogin() == 'scherbela':
+    sys.exit(0)
 
 timestamp = datetime.datetime.now().strftime("%Y%m%d_%H%M")
 fname = f"/home/mscherbela/develop/LaplaceSolverMPS/outputs/2D_sweep_{timestamp}_nswp{nswap}_rank{max_rank}_eps{rel_error:.1e}_kickrank{kickrank}_.csv"
