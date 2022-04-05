@@ -111,7 +111,7 @@ class TensorTrain:
         for k, (r_old, r_new) in enumerate(zip(self.ranks, ranks_new)):
             U_reshaped = U.reshape([-1, r_old])
             # Run SVD and truncate singular values
-            if (r_new < r_old) and r_new < min(U_reshaped.shape):
+            if (r_new < r_old) and (r_new < min(U_reshaped.shape)) and (r_old > 10_000) and (r_old / r_new > 10):
                 Vl, S, Vr = svds(U_reshaped, k=r_new)
                 # SVDs sorts singular values from smallest to largest => flip order
                 Vl = Vl[:, ::-1]

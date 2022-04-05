@@ -230,7 +230,7 @@ def solve_PDE_2D_with_preconditioner(f, max_rank=60, **solver_options):
 
     B = get_laplace_BPX_2D(L)
     b = (get_rhs_matrix_BPX_2D(L) @ f).squeeze()
-    # B.reapprox(ranks_new=max_rank, rel_error=rel_error)
+    B.reapprox(rel_error=rel_error)
     b.reapprox(ranks_new=max_rank, rel_error=rel_error)
     print("Ranks B: ", B.ranks)
     print("Ranks b: ", b.ranks)

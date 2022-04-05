@@ -13,7 +13,7 @@ print(sys.argv)
 if len(sys.argv) == 2:
     L_values = np.arange(int(sys.argv[1]), int(sys.argv[1])+1)
 else:
-    L_values = np.arange(2, 8)
+    L_values = np.arange(2, 11)
 
 error_L2 = [np.ones(len(L_values))*np.nan, np.ones(len(L_values))*np.nan]
 error_H1 = [np.ones(len(L_values))*np.nan, np.ones(len(L_values))*np.nan]
@@ -23,9 +23,9 @@ error_of_H1_norm = [np.ones(len(L_values))*np.nan, np.ones(len(L_values))*np.nan
 refnorm_L2 = (1/15 + 3 / (16*np.pi**4) - 3 / (16 * np.pi**2)) * (67 / 210)
 refnorm_H1 = (2144*np.pi**6 + 5926*np.pi**4 + 7245 - 9255*np.pi**2)/(25200*np.pi**4)
 
-rel_error = 1e-8
-nswap = 300
-max_rank = 600
+rel_error = 1e-9
+nswap = 50
+max_rank = 150
 kickrank = 2
 print("eps=",rel_error)
 print("nswap=",nswap)
@@ -89,7 +89,7 @@ df.to_csv(fname, index=False)
 import numpy as np
 import matplotlib.pyplot as plt
 import pandas as pd
-# fname = "/home/mscherbela/develop/LaplaceSolverMPS/outputs/vsc3_nswp150_rank600_eps1e-10_kickrank2.csv"
+fname = "/home/mscherbela/develop/LaplaceSolverMPS/outputs/vsc3_nswp150_rank600_eps1e-10_kickrank2.csv"
 df = pd.read_csv(fname)
 df.sort_values(['bpx', 'L'], inplace=True)
 eps = float(fname.split('eps')[-1].split('_')[0])
