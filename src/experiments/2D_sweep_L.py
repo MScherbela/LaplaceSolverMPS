@@ -6,6 +6,7 @@ import datetime
 import pandas as pd
 import sys
 
+print(sys.argv)
 if len(sys.argv) == 2:
     L_values = np.arange(int(sys.argv[1]), int(sys.argv[1])+1)
 else:
