@@ -2,7 +2,7 @@ import numpy as np
 import pandas as pd
 import glob
 
-input_dir = "/home/mscherbela/develop/LaplaceSolverMPS/outputs/run5_eps1e-12_swp150_rank200"
+input_dir = "/home/mscherbela/develop/LaplaceSolverMPS/outputs/run7_eps1e-13_nswp250_rank300"
 input_files = glob.glob(input_dir + "/*/TM.out")
 data_list = []
 for fname in input_files:

@@ -4,7 +4,7 @@ import matplotlib.pyplot as plt
 from laplace_mps.utils import build_u_with_correct_boundary_conditions, get_example_u_1D, get_example_u_deriv_1D, get_example_f_1D, \
     evaluate_nodal_basis
 
-L_values = np.arange(3, 10)
+L_values = np.arange(3, 40)
 error_L2 = [np.ones(len(L_values))*np.nan, np.ones(len(L_values))*np.nan]
 error_H1 = [np.ones(len(L_values))*np.nan, np.ones(len(L_values))*np.nan]
 error_of_L2_norm = [np.ones(len(L_values))*np.nan, np.ones(len(L_values))*np.nan]
@@ -18,31 +18,24 @@ for ind_solver, solver in enumerate([solve_PDE_1D_with_preconditioner, solve_PDE
         if (ind_solver == 1) and L > 20:
             break
         print(f"L = {L}")
-        h = 0.5**(L)
+        h = 0.5**L
         u_ref = get_example_u_1D(L, basis='nodal')
         u_deriv_ref = get_example_u_deriv_1D(L, basis='average')
-        f = get_example_f_1D(L).reapprox(rel_error=1e-15)
-        # u_solved, u_deriv_solved, r2_precond = solver(f, n_steps_max=100, max_rank=max_rank, print_steps=True, rel_accuracy=1e-24)
+        f = get_example_f_1D(L)
         u_solved, u_deriv_solved = solver(f)
 
-
-        delta_u = (u_solved - u_ref).reapprox(rel_error=1e-6)
-        delta_u_deriv = (u_deriv_solved - u_deriv_ref).reapprox(rel_error=1e-6)
-        mass = build_mass_matrix_in_nodal_basis(L)
-        L2_residual = np.sqrt((delta_u @ mass @ delta_u).squeeze().eval())
+        delta_u = (u_solved - u_ref).reapprox()
+        delta_u_deriv = (u_deriv_solved - u_deriv_ref).reapprox()
+        L2_residual = np.sqrt(get_L2_norm_1D(delta_u))#np.sqrt((delta_u @ mass @ delta_u).squeeze().eval())
         H1_residual = np.sqrt(delta_u_deriv.norm_squared()*h)
-        # H1_residual = (delta_u_deriv @ mass @ delta_u_deriv).squeeze().eval()
-        # L2_residual = (u_ref - u_solved).reapprox(rel_error=1e-12).norm_squared() * h
-        # H1_residual = (u_deriv_ref - u_deriv_solved).reapprox(rel_error=1e-12).norm_squared() * h
 
-        mass_matrix = build_mass_matrix_in_nodal_basis(L)
-        error_of_L2_norm[ind_solver][ind_L] = get_L2_norm_1D(u_solved) - refnorm_L2
-        error_of_H1_norm[ind_solver][ind_L] = u_deriv_solved.norm_squared()*h - refnorm_H1
+        error_of_L2_norm[ind_solver][ind_L] = (get_L2_norm_1D(u_solved) - refnorm_L2)/refnorm_L2
+        error_of_H1_norm[ind_solver][ind_L] = (u_deriv_solved.norm_squared()*h - refnorm_H1)/refnorm_H1
 
         print(f"L2: {L2_residual:.2e}")
         print(f"H1: {H1_residual:.2e}")
-        error_L2[ind_solver][ind_L] = L2_residual
-        error_H1[ind_solver][ind_L] = H1_residual
+        error_L2[ind_solver][ind_L] = L2_residual / np.sqrt(refnorm_L2)
+        error_H1[ind_solver][ind_L] = H1_residual / np.sqrt(refnorm_H1)
 
 #%%
 plt.close("all")

@@ -89,8 +89,12 @@ df.to_csv(fname, index=False)
 import numpy as np
 import matplotlib.pyplot as plt
 import pandas as pd
+
+
 # fname = "/home/mscherbela/develop/LaplaceSolverMPS/outputs/vsc3_nswp150_rank600_eps1e-10_kickrank2.csv"
-fname = "/home/mscherbela/develop/LaplaceSolverMPS/outputs/run5_eps1e-12_swp150_rank200.csv"
+fname = "/home/mscherbela/develop/LaplaceSolverMPS/outputs/run7_eps1e-13_nswp250_rank300.csv"
+refnorm_L2 = (1/15 + 3 / (16*np.pi**4) - 3 / (16 * np.pi**2)) * (67 / 210)
+refnorm_H1 = (2144*np.pi**6 + 5926*np.pi**4 + 7245 - 9255*np.pi**2)/(25200*np.pi**4)
 
 df = pd.read_csv(fname)
 df.sort_values(['bpx', 'L'], inplace=True)
@@ -106,27 +110,29 @@ for ind_solver, solver in enumerate(["With BPX precond", "without BPX"]):
     color_H1 = ['salmon', 'lightblue'][ind_solver]
     ls = ['-', '--'][ind_solver]
     color = f'C{ind_solver}'
-    axes[0].semilogy(df_filt.L, df_filt.L2_delta_u, marker='o', label=f"{solver}: L2", color=color_L2, ls=ls)
+    axes[0].semilogy(df_filt.L, df_filt.L2_delta_u/np.sqrt(refnorm_L2), marker='o', label=f"{solver}: L2", color=color_L2, ls=ls)
     if np.any(~np.isnan(df_filt.H1_delta_u)):
-        axes[0].semilogy(df_filt.L, df_filt.H1_delta_u, marker='o', label=f"{solver}: H1", color=color_H1, ls=ls)
+        axes[0].semilogy(df_filt.L, df_filt.H1_delta_u/np.sqrt(refnorm_H1), marker='o', label=f"{solver}: H1", color=color_H1, ls=ls)
 
-    axes[0].set_ylim([1e-10, None])
-    axes[0].set_xlabel("L")
     axes[0].set_ylabel("norm of error")
 
-    axes[1].semilogy(df_filt.L, np.abs(df_filt.error_L2_norm), marker='o', label=f"{solver}: L2", color=color_L2, ls=ls)
+    axes[1].semilogy(df_filt.L, np.abs(df_filt.error_L2_norm)/refnorm_L2, marker='o', label=f"{solver}: L2", color=color_L2, ls=ls)
     if np.any(~np.isnan(df_filt.error_H1_norm)):
-        axes[1].semilogy(df_filt.L, np.abs(df_filt.error_H1_norm), marker='o', label=f"{solver}: H1", color=color_H1, ls=ls)
+        axes[1].semilogy(df_filt.L, np.abs(df_filt.error_H1_norm)/refnorm_H1, marker='o', label=f"{solver}: H1", color=color_H1, ls=ls)
 
 axes[0].set_title("Norm of residual: $||u-u_{ref}||$")
 axes[1].set_title("Error of norm: $||u||^2 - ref$")
 
-axes[0].semilogy(df_filt.L, 0.6 * 0.5 ** (2 * df_filt.L), label='~$2^{-2L}$', color='lightgray', zorder=-1)
-axes[1].semilogy(df_filt.L, 0.1 * 0.5 ** (2 * df_filt.L), label='~$2^{-2L}$', color='lightgray', zorder=-1)
+L_values = np.arange(df.L.min(), df.L.max()+1)
+axes[0].semilogy(L_values, 0.5 ** (2 * L_values), label='~$2^{-2L}$', color='lightgray', zorder=-1)
+axes[1].semilogy(L_values, 0.5 ** (2 * L_values), label='~$2^{-2L}$', color='lightgray', zorder=-1)
 for ax in axes:
     ax.grid(alpha=0.3)
     ax.legend(loc='upper right')
     ax.axhline(eps, color='k', ls='--', label='Solver accuracy')
+    ax.set_ylim([1e-14, None])
+    ax.set_xlabel("L")
+
 
 plt.savefig(f"outputs/2D_sweep_L.pdf", bbox_inches='tight')
 

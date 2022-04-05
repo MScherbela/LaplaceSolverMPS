@@ -98,8 +98,6 @@ def get_laplace_matrix_as_tt(L):
     for i in range(L):
         A.tensors[i] = A.tensors[i] / 2
     A.reapprox(rel_error=1e-16)
-    # for i in range(L):
-    #     A.tensors[i] *= 2
     return A
 
 def get_laplace_bpx(L):
@@ -175,10 +173,7 @@ def solve_PDE_1D(f, **solver_options):
     L = len(f) - 1
     g = (get_rhs_matrix_as_tt(L) @ f).squeeze()
     A = get_laplace_matrix_as_tt(L)
-    # for i in range(len(A)):
-    #     g.tensors[i] /= 2
 
-    # u, r2 = solve_with_grad_descent(A, g, **solver_options)
     u = solve_with_amen(A, g, **solver_options)
     D = get_derivative_matrix_as_tt(L)
     Du = (D @ u).reapprox(rel_error=1e-15)
@@ -203,7 +198,7 @@ def solve_PDE_2D(f: tm.TensorTrain, max_rank=60, **solver_options):
     return u, DuDx, DuDy
 
 def solve_PDE_1D_with_preconditioner(f, max_rank=60, **solver_options):
-    REL_ERROR = 1e-12
+    REL_ERROR = 1e-15
     L = len(f) - 1
     C = get_bpx_preconditioner(L)
 
@@ -215,7 +210,7 @@ def solve_PDE_1D_with_preconditioner(f, max_rank=60, **solver_options):
     B = get_laplace_bpx(L).reapprox(rel_error=REL_ERROR)
 
     v = solve_with_amen(B, b, **solver_options)
-    v.reapprox(rel_error=REL_ERROR, ranks_new=max_rank)
+    v.reapprox(rel_error=REL_ERROR)
     u = (C @ v).reapprox(rel_error=REL_ERROR)
 
     Qp = get_bpx_Qp(L)
@@ -249,7 +244,7 @@ def solve_PDE_2D_with_preconditioner(f, max_rank=60, **solver_options):
 def solve_with_amen(A, b, **solver_options):
     import tt
     from tt.amen import amen_solve
-    amen_options = dict(eps=1e-14, nswp=40, local_iters=2, verb=1)
+    amen_options = dict(eps=1e-15, nswp=40, local_iters=2, verb=1)
     amen_options.update(solver_options)
     eps = amen_options['eps']
     del amen_options['eps']
