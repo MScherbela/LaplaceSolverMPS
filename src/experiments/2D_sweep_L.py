@@ -7,6 +7,7 @@ from laplace_mps.utils import get_example_u_2D, get_example_f_2D, _get_gram_matr
 import datetime
 import pandas as pd
 import sys
+import getpass
 
 print(sys.argv)
 if len(sys.argv) == 2:
@@ -59,7 +60,7 @@ for ind_solver, (is_bpx, solver) in enumerate(zip([True, False], [solve_PDE_2D_w
         print(f"Error of L2 norm: {error_of_L2_norm[ind_solver][ind_L]:.4e}")
 
 
-if os.getlogin() == 'scherbela':
+if getpass.getuser() == 'scherbela':
     sys.exit(0)
 
 timestamp = datetime.datetime.now().strftime("%Y%m%d_%H%M")
