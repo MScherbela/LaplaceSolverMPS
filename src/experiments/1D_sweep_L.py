@@ -4,7 +4,7 @@ import matplotlib.pyplot as plt
 from laplace_mps.utils import build_u_with_correct_boundary_conditions, get_example_u_1D, get_example_u_deriv_1D, get_example_f_1D, \
     evaluate_nodal_basis
 
-L_values = np.arange(3, 30)
+L_values = np.arange(3, 10)
 error_L2 = [np.ones(len(L_values))*np.nan, np.ones(len(L_values))*np.nan]
 error_H1 = [np.ones(len(L_values))*np.nan, np.ones(len(L_values))*np.nan]
 error_of_L2_norm = [np.ones(len(L_values))*np.nan, np.ones(len(L_values))*np.nan]
@@ -20,7 +20,7 @@ for ind_solver, solver in enumerate([solve_PDE_1D_with_preconditioner, solve_PDE
         print(f"L = {L}")
         h = 0.5**(L)
         u_ref = get_example_u_1D(L, basis='nodal')
-        u_deriv_ref = get_example_u_deriv_1D(L, basis='nodal')
+        u_deriv_ref = get_example_u_deriv_1D(L, basis='average')
         f = get_example_f_1D(L).reapprox(rel_error=1e-15)
         # u_solved, u_deriv_solved, r2_precond = solver(f, n_steps_max=100, max_rank=max_rank, print_steps=True, rel_accuracy=1e-24)
         u_solved, u_deriv_solved = solver(f)
@@ -54,8 +54,6 @@ for ind_solver, solver in enumerate(["with BPX precond.", "no precond."]):
     color = f'C{ind_solver}'
     axes[0].semilogy(L_values, error_L2[ind_solver], marker='o', label=f"L2: {solver}", color=color_L2, ls=ls)
     axes[0].semilogy(L_values, error_H1[ind_solver], marker='o', label=f"H1: {solver}", color=color_H1, ls=ls)
-    # axes[0].semilogy(L_values, 0.5 ** (4*L_values), label='~$2^{-4L}$', color='dimgray', zorder=-1)
-    # axes[0].semilogy(L_values, 0.5 ** (L_values), label='$2^{-L/2}$', color='lightgray', zorder=-1)
 
     axes[0].set_ylim([1e-16, None])
     axes[0].set_xlabel("L")

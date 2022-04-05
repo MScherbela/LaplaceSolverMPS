@@ -198,9 +198,8 @@ def solve_PDE_2D(f: tm.TensorTrain, max_rank=60, **solver_options):
     D = get_derivative_matrix_as_tt(L)
     D.tensors.append(np.ones([1,1,1,1]))
     M = get_overlap_matrix_as_tt(L)
-    DuDx = kronecker_prod_2D(D, M) @ u_expanded
-    DuDy = kronecker_prod_2D(M, D) @ u_expanded
-
+    DuDx = (kronecker_prod_2D(D, M) @ u_expanded).flatten_mode_indices()
+    DuDy = (kronecker_prod_2D(M, D) @ u_expanded).flatten_mode_indices()
     return u, DuDx, DuDy
 
 def solve_PDE_1D_with_preconditioner(f, max_rank=60, **solver_options):
@@ -231,7 +230,7 @@ def solve_PDE_2D_with_preconditioner(f, max_rank=60, **solver_options):
 
     B = get_laplace_BPX_2D(L)
     b = (get_rhs_matrix_BPX_2D(L) @ f).squeeze()
-    B.reapprox(ranks_new=max_rank, rel_error=rel_error)
+    # B.reapprox(ranks_new=max_rank, rel_error=rel_error)
     b.reapprox(ranks_new=max_rank, rel_error=rel_error)
     print("Ranks B: ", B.ranks)
     print("Ranks b: ", b.ranks)
@@ -242,9 +241,8 @@ def solve_PDE_2D_with_preconditioner(f, max_rank=60, **solver_options):
     C = get_BPX_preconditioner_2D(L)
     u = (C @ v).reapprox(ranks_new=max_rank, rel_error=rel_error)
     v.tensors.append(np.ones([1,1,1,1]))
-    Dx = get_BPX_Qp_2D(L, 'x') @ v
-    Dy = get_BPX_Qp_2D(L, 'y') @ v
-
+    Dx = (get_BPX_Qp_2D(L, 'x') @ v).flatten_mode_indices()
+    Dy = (get_BPX_Qp_2D(L, 'y') @ v).flatten_mode_indices()
     return u, Dx, Dy
 
 

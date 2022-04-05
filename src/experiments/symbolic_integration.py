@@ -9,6 +9,10 @@ f_L2 = integrate(f**2, (x, 0, 1))
 g_L2 = integrate(g**2, (y, 0, 1))
 g_H1 = integrate(diff(g, y)**2, (y, 0, 1))
 
+f1 = diff(f, x, 1).simplify()
+g1 = diff(g, y, 1).simplify()
+
+
 f2 = diff(f, x, 2).simplify()
 g2 = diff(g, y, 2).simplify()
 rhs = (diff(f*g, x, 2) + diff(f*g, y, 2)).simplify()

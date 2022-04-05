@@ -119,13 +119,17 @@ def get_example_u_1D(L, basis='corner'):
 def get_example_u_deriv_1D(L, basis='corner'):
     u1 = get_polynomial_as_tt([-3, 4], L) * get_trig_function_as_tt([0, 1, 1.0], L) + \
         get_polynomial_as_tt([2*np.pi, -6*np.pi, 4*np.pi], L) * get_trig_function_as_tt([1, 0, 1.0], L)
-    if basis == 'corner':
+    if (basis == 'corner') or (basis == 'average'):
         s = np.array([-1, 1])
     elif basis == 'nodal':
         s = np.array([1])
     else:
         raise ValueError(f"Unknown basis: {basis}")
-    return evaluate_nodal_basis(u1, s).squeeze().reapprox(rel_error=REL_ERROR)
+    d = evaluate_nodal_basis(u1, s).squeeze().reapprox(rel_error=REL_ERROR)
+    if basis == 'average':
+        d.tensors[-1] = (d.tensors[-1].reshape([-1,2]) @ np.array([0.5, 0.5])).reshape([-1, 1, 1])
+        d.squeeze()
+    return d
 
 def get_example_f_1D(L):
     f = get_polynomial_as_tt([4-4*np.pi**2, 12*np.pi**2, -8*np.pi**2], L) * get_trig_function_as_tt([0, 1, 1.0], L) + \
@@ -154,6 +158,26 @@ def get_example_f_2D(L):
 
     f = ux.expand_dims(1) * uy2.expand_dims(0) + ux2.expand_dims(1) * uy.expand_dims(0)
     return -f.reapprox(rel_error=REL_ERROR)
+
+def get_example_grad_u_2D(L):
+    ux = get_polynomial_as_tt([0, -1, 5, -3], L)
+    ux.tensors[-1] = (ux.tensors[-1].reshape([-1, 2]) @ np.array([[0.5, -0.5], [0.5, 0.5]])).reshape([-1,2,1])
+    uy = get_polynomial_as_tt([1, -3, 2], L) * get_trig_function_as_tt([0, 1, 1.0], L)
+    uy.tensors[-1] = (uy.tensors[-1].reshape([-1, 2]) @ np.array([[0.5, -0.5], [0.5, 0.5]])).reshape([-1,2,1])
+
+    ux1 = get_polynomial_as_tt([-1, 10, -9], L)
+    uy1 = get_polynomial_as_tt([-3, 4], L) * get_trig_function_as_tt([0, 1, 1.0], L) + \
+        get_polynomial_as_tt([2*np.pi, -6*np.pi, 4*np.pi], L) * get_trig_function_as_tt([1.0, 0.0, 1.0], L)
+    ux1 = evaluate_nodal_basis(ux1, [-1,1], 'average').reshape_mode_indices([2,1])
+    ux1.tensors.append(np.ones([1,1,1,1]))
+    uy1 = evaluate_nodal_basis(uy1, [-1, 1], 'average').reshape_mode_indices([2,1])
+    uy1.tensors.append(np.ones([1,1,1,1]))
+
+    Dx = kronecker_prod_2D(ux1, uy.reshape_mode_indices([2,1])).flatten_mode_indices()
+    Dy = kronecker_prod_2D(ux.reshape_mode_indices([2,1]), uy1).flatten_mode_indices()
+    return Dx, Dy
+
+
 
 def kronecker_prod_2D(A, B):
     C = A.copy().expand_dims([1,3]) * B.copy().expand_dims([0,2])
@@ -209,20 +233,27 @@ def evaluate_nodal_basis(tt: tm.TensorTrain, s: np.array, basis='corner'):
         assert tt[-1].shape[1] == 2, "Tensor to be evaluated must be in nodal-basis, i.e. have 2 basis elements"
         if basis == 'corner':
             final_factor = np.array([(1-s)/2, (1+s)/2])
+        elif basis == 'average':
+            final_factor = np.array([(1 - s) / 2, (1 + s) / 2])
+            final_factor = final_factor @ np.ones([2,1]) * 0.5
         elif basis == 'legendre':
             final_factor = np.array([np.ones_like(s), 2*s - 1])
         else:
             raise NotImplementedError(f"Unknown basis {basis}")
         output.tensors[-1] = (output.tensors[-1].squeeze(-1) @ final_factor)[..., None]
+        output.squeeze()
 
     elif (s.ndim == 2) and s.shape[0] == 2:
         # Approximation of 2D function
         assert tt[-1].shape[1:3] == (2,2)
-        if basis == 'corner':
+        if (basis == 'corner') or (basis == 'average'):
             final_factor = np.array([(1-s[0])*(1-s[1]), (1-s[0])*(1+s[1]), (1+s[0])*(1-s[1]), (1+s[0])*(1+s[1])]) / 4
             output.tensors[-1] = (output.tensors[-1].reshape([-1, 4]) @ final_factor)[..., None]
         else:
             raise NotImplementedError(f"Unknown basis {basis}")
+        if basis == 'average':
+            output.tensors[-1] = (output.tensors[-1].reshape([-1,4]) @ (np.ones(4) * 0.25)).reshape([-1, 4, 1])
+            output.squeeze()
     return output
 
 
