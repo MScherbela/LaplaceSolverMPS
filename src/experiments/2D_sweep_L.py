@@ -25,7 +25,7 @@ refnorm_H1 = (2144*np.pi**6 + 5926*np.pi**4 + 7245 - 9255*np.pi**2)/(25200*np.pi
 
 rel_error = 1e-12
 nswap = 150
-max_rank = 150
+max_rank = 200
 kickrank = 2
 print("eps=",rel_error)
 print("nswap=",nswap)
