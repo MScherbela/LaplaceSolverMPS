@@ -2,9 +2,7 @@ from typing import List
 import numpy
 import numpy as np
 import numpy.polynomial.polynomial
-import laplace_mps.tensormethods as tm
 import matplotlib.pyplot as plt
-
 from laplace_mps import tensormethods as tm
 
 REL_ERROR = 1e-15

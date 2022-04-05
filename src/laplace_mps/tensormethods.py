@@ -225,15 +225,16 @@ class TensorTrain:
         return self
 
     def evalm(self):
-        return self.eval(reshape='matrix')
+        return self.eval(reshape='matrix', squeeze=False)
 
     def evalv(self):
-        return self.eval(reshape='vector')
+        return self.eval(reshape='vector', squeeze=False)
 
     def eval(self, squeeze=True, reshape=None):
         A = self.tensors[0]
         for U in self.tensors[1:]:
             A = np.tensordot(A, U, (-1, 0))
+        A = A.reshape(A.shape[1:-1])
         if squeeze:
             A = A.squeeze()
         if reshape == 'vector':

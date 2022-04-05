@@ -1,7 +1,7 @@
 import numpy as np
 import laplace_mps.tensormethods as tm
 from laplace_mps.bpx import get_laplace_BPX_2D, get_BPX_preconditioner_2D, get_rhs_matrix_BPX_2D, get_BPX_Qp_2D
-
+from laplace_mps.utils import kronecker_prod_2D
 
 def _get_gram_matrix_legendre():
     return np.diag([2,2/3])
@@ -184,17 +184,24 @@ def solve_PDE_1D(f, **solver_options):
     Du = (D @ u).reapprox(rel_error=1e-15)
     return u, Du
 
-def solve_PDE_2D(f: tm.TensorTrain, **solver_options):
+def solve_PDE_2D(f: tm.TensorTrain, max_rank=60, **solver_options):
     f = f.copy().flatten_mode_indices()
     L = len(f) - 1
-    g = (get_rhs_matrix_as_tt_2D(L) @ f).squeeze()
+    g = (get_rhs_matrix_as_tt_2D(L) @ f).squeeze().reapprox(max_rank)
     A = build_laplace_matrix_2D(L)
-    # for i in range(len(A)):
-    #     g.tensors[i] /= 4
-
     u = solve_with_amen(A, g, **solver_options)
     u.reapprox(rel_error=1e-14)
-    return u
+
+
+    u_expanded = u.copy()
+    u_expanded.tensors.append(np.ones([1,1,1,1]))
+    D = get_derivative_matrix_as_tt(L)
+    D.tensors.append(np.ones([1,1,1,1]))
+    M = get_overlap_matrix_as_tt(L)
+    DuDx = kronecker_prod_2D(D, M) @ u_expanded
+    DuDy = kronecker_prod_2D(M, D) @ u_expanded
+
+    return u, DuDx, DuDy
 
 def solve_PDE_1D_with_preconditioner(f, max_rank=60, **solver_options):
     REL_ERROR = 1e-12
@@ -202,22 +209,16 @@ def solve_PDE_1D_with_preconditioner(f, max_rank=60, **solver_options):
     C = get_bpx_preconditioner(L)
 
     b = (get_rhs_matrix_bpx(L) @ f).squeeze()
-    # g = (get_rhs_matrix_as_tt(L) @ f).squeeze()
-    # b = (C @ g).reapprox(rel_error=REL_ERROR)
 
     A = get_laplace_matrix_as_tt(L)
     for i in range(len(A)):
         b.tensors[i] /= 2
     B = get_laplace_bpx(L).reapprox(rel_error=REL_ERROR)
 
-    # v, r2 = solve_with_grad_descent(B, b, **solver_options)
     v = solve_with_amen(B, b, **solver_options)
     v.reapprox(rel_error=REL_ERROR, ranks_new=max_rank)
     u = (C @ v).reapprox(rel_error=REL_ERROR)
 
-    # D = get_derivative_matrix_as_tt(L)
-    # DC = (D @ C).reapprox(rel_error=REL_ERROR)
-    # Du = (DC @ v).reapprox(rel_error=REL_ERROR)
     Qp = get_bpx_Qp(L)
     Du = (Qp @ v).reapprox(rel_error=REL_ERROR)
     return u, Du
@@ -229,12 +230,11 @@ def solve_PDE_2D_with_preconditioner(f, max_rank=60, **solver_options):
     rel_error = solver_options.get('eps', 1e-14)
 
     B = get_laplace_BPX_2D(L)
-    B.reapprox(ranks_new=max_rank, rel_error=rel_error)
     b = (get_rhs_matrix_BPX_2D(L) @ f).squeeze()
+    B.reapprox(ranks_new=max_rank, rel_error=rel_error)
     b.reapprox(ranks_new=max_rank, rel_error=rel_error)
     print("Ranks B: ", B.ranks)
     print("Ranks b: ", b.ranks)
-
 
     print("Starting solver....")
     v = solve_with_amen(B, b, **solver_options)
