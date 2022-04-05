@@ -23,10 +23,14 @@ error_of_H1_norm = [np.ones(len(L_values))*np.nan, np.ones(len(L_values))*np.nan
 refnorm_L2 = (1/15 + 3 / (16*np.pi**4) - 3 / (16 * np.pi**2)) * (67 / 210)
 refnorm_H1 = (2144*np.pi**6 + 5926*np.pi**4 + 7245 - 9255*np.pi**2)/(25200*np.pi**4)
 
-rel_error = 1e-10
-nswap = 150
+rel_error = 1e-12
+nswap = 300
 max_rank = 600
 kickrank = 2
+print("eps=",rel_error)
+print("nswap=",nswap)
+print("max_rank=",max_rank)
+print("kickrank=",kickrank)
 for ind_solver, (is_bpx, solver) in enumerate(zip([True, False], [solve_PDE_2D_with_preconditioner, solve_PDE_2D])):
     for ind_L, L in enumerate(L_values):
         if not is_bpx and L > 14:
