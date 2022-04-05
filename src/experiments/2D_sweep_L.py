@@ -4,8 +4,13 @@ import numpy as np
 from laplace_mps.utils import get_example_u_2D, get_example_f_2D, _get_gram_matrix_tt, _get_identy_as_tt, kronecker_prod_2D
 import datetime
 import pandas as pd
+import sys
 
-L_values = np.arange(2, 15)
+if len(sys.argv) == 2:
+    L_values = np.arange(int(sys.argv[1]), int(sys.argv[1])+1)
+else:
+    L_values = np.arange(2, 15)
+
 error_L2 = [np.ones(len(L_values))*np.nan, np.ones(len(L_values))*np.nan]
 error_H1 = [np.ones(len(L_values))*np.nan, np.ones(len(L_values))*np.nan]
 error_of_L2_norm = [np.ones(len(L_values))*np.nan, np.ones(len(L_values))*np.nan]
