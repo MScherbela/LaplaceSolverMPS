@@ -1,7 +1,7 @@
 from laplace_mps.solver import solve_PDE_2D, solve_PDE_2D_with_preconditioner, build_laplace_matrix_2D
 import numpy as np
 import matplotlib.pyplot as plt
-from laplace_mps.utils import draw_vertical_grid, eval_function, get_example_u_2D, get_example_f_2D, evaluate_nodal_basis, kronecker_prod_2D, _get_gram_matrix_tt, _get_identy_as_tt
+from laplace_mps.utils import get_example_u_2D, get_example_f_2D, kronecker_prod_2D, _get_gram_matrix_tt, _get_identy_as_tt
 
 
 def imshow(ax, x):
@@ -19,7 +19,6 @@ f = get_example_f_2D(L).reapprox(ranks_new=max_rank)
 refnorm_L2 = (1/15 + 3 / (16*np.pi**4) - 3 / (16 * np.pi**2)) * (67 / 210)
 refnorm_H1 = (2144*np.pi**6 + 5926*np.pi**4 + 7245 - 9255*np.pi**2)/(25200*np.pi**4)
 
-# u_solved = solve_PDE_2D_with_preconditioner(f)
 u_solved, DuDx, DuDy = solve_PDE_2D_with_preconditioner(f, eps=1e-10, nswp=20)
 A = build_laplace_matrix_2D(L)
 H1_norm_naive = (u_solved.copy().transpose() @ A @ u_solved).squeeze().eval()

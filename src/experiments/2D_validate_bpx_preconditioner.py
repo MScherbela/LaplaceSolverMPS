@@ -1,15 +1,12 @@
 import numpy as np
-import matplotlib.pyplot as plt
-from laplace_mps.solver import get_bpx_preconditioner, _get_bpx_factors, _get_refinement_tensor, get_bpx_preconditioner_by_sum_2D, get_derivative_matrix_as_tt, get_overlap_matrix_as_tt, get_bpx_Qp, get_bpx_Qt, get_bpx_Qt_term, get_bpx_Qp_term, get_laplace_bpx_2D_by_sum, get_rhs_matrix_bpx_by_sum_2D
-from laplace_mps.bpx import get_BPX_preconditioner_2D, get_BPX_Qp_2D, get_BPX_Q_2D, get_laplace_BPX_2D, get_rhs_matrix_BPX_2D
-import laplace_mps.tensormethods as tm
+from laplace_mps.solver import get_bpx_preconditioner_by_sum_2D, get_derivative_matrix_as_tt, get_overlap_matrix_as_tt, get_laplace_bpx_2D_by_sum, get_rhs_matrix_bpx_by_sum_2D
+from laplace_mps.bpx2D import get_BPX_preconditioner_2D, get_BPX_Qp_2D, get_BPX_Q_2D, get_laplace_BPX_2D, get_rhs_matrix_BPX_2D
 
 L = 3
 def tensor_dot(A, B):
     C = A.copy().expand_dims([1,3]) * B.copy().expand_dims([0,2])
     new_shapes = [(U.shape[1]*U.shape[2], U.shape[3]*U.shape[4]) for U in C]
     return C.reshape_mode_indices(new_shapes)
-
 
 def print_comparison(A, B, labelA, labelB):
     nA = A.norm_squared()
@@ -20,8 +17,6 @@ def print_comparison(A, B, labelA, labelB):
     print(f"Norm² {'residual': <20}: {nRes:.2e}")
     print(f"log2 {'ratio': <21}: {np.log2(nA/nB):8.3f}")
     print("-"*45)
-
-
 
 C_2D = get_BPX_preconditioner_2D(L)
 Q_2D = get_BPX_Q_2D(L)

@@ -15,7 +15,7 @@ def get_cond_nr(A):
     return np.max(s) / np.min(s)
 
 rel_error = 1e-12
-L_values = np.arange(2, 9)
+L_values = np.arange(2, 12)
 for L in L_values:
     print(L)
     A = get_laplace_matrix_as_tt(L)
@@ -37,23 +37,26 @@ for L in L_values:
 
 
 plt.close("all")
-plt.figure()
-plt.semilogy(L_values, cond_nr_A_raw, label="Raw stiffness matrix", color='C0', ls='-')
-plt.semilogy(L_values, cond_nr_A_bpx, label="Preconditioned stiffness matrix", color='C0', ls='--')
-plt.semilogy(L_values, cond_nr_D, label="$D$: Derivative", color='C1', ls='-')
-plt.semilogy(L_values, cond_nr_Qp, label="$Q'$: Derivative * BPX preconditioner", color='C1', ls='--')
-plt.semilogy(L_values, cond_nr_M, label="$M$: Overlap", color='C2', ls='-')
-plt.semilogy(L_values, cond_nr_Q, label="$Q$: Overlap * BPX preconditioner", color='C2', ls='--')
-plt.semilogy(L_values, cond_nr_bpx, label="$C$: BPX preconditioner", color='k', ls='--')
+fig, axes = plt.subplots(1, 2, sharey=True, figsize=(9,5), dpi=100)
+axes[0].semilogy(L_values, cond_nr_A_raw, label="$A$: Raw stiffness matrix", color='C0', lw=3)
+axes[1].semilogy(L_values, cond_nr_A_bpx, label="$B$: Preconditioned stiffness matrix", color='C0', lw=3)
+axes[0].semilogy(L_values, cond_nr_D, label="$D$: Derivative", color='C1', lw=3)
+axes[1].semilogy(L_values, cond_nr_Qp, label="$Q'$: Derivative * BPX preconditioner", color='C1', lw=3)
+axes[0].semilogy(L_values, cond_nr_M, label="$M$: Overlap", color='C2', lw=3)
+axes[1].semilogy(L_values, cond_nr_Q, label="$Q$: Overlap * BPX preconditioner", color='C2', lw=3)
+axes[1].semilogy(L_values, cond_nr_bpx, label="$C$: BPX preconditioner", color='C3', lw=3, ls='--')
+axes[0].semilogy(L_values, 2 ** L_values, label="$2^L$", color='dimgray')
+axes[1].semilogy(L_values, 2 ** L_values, label="$2^L$", color='dimgray')
+axes[0].semilogy(L_values, 4 ** L_values, label="$2^{2L}$", color='lightgray')
 
-plt.semilogy(L_values, 2**L_values, label="$2^L$", color='dimgray')
-plt.semilogy(L_values, 4**L_values, label="$2^{2L}$", color='lightgray')
-
-plt.xlabel("Nr of levels $L$")
-plt.ylabel("Condition number")
-plt.grid(alpha=0.5)
-plt.legend()
-
-plt.savefig(f"outputs/1D_condition_number.pdf", bbox_inches='tight')
+for ax in axes:
+    ax.set_xlabel("Nr of levels $L$")
+    ax.grid(alpha=0.5)
+    ax.legend(loc='upper left')
+axes[0].set_ylabel("Condition number")
+axes[0].set_title("Without preconditioner")
+axes[1].set_title("With BPX preconditioner")
+fig.tight_layout()
+fig.savefig(f"outputs/1D_condition_number.pdf", bbox_inches='tight')
 
 

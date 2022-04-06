@@ -1,6 +1,6 @@
 import numpy as np
 import laplace_mps.tensormethods as tm
-from laplace_mps.bpx import get_laplace_BPX_2D, get_BPX_preconditioner_2D, get_rhs_matrix_BPX_2D, get_BPX_Qp_2D
+from laplace_mps.bpx2D import get_laplace_BPX_2D, get_BPX_preconditioner_2D, get_rhs_matrix_BPX_2D, get_BPX_Qp_2D
 from laplace_mps.utils import kronecker_prod_2D
 
 def _get_gram_matrix_legendre():
@@ -15,29 +15,18 @@ def get_rhs_matrix_bpx(L):
 
 def get_rhs_matrix_as_tt(L, basis="corner"):
     R = get_overlap_matrix_as_tt(L).transpose() * 0.5
-
     G = get_gram_matrix_as_tt(L, basis)
     R = R @ G
-    # G = _get_gram_matrix_legendre() / 2
-    # if basis == 'corner':
-    #     G = G @  np.array([[1,1],[-1,1]]) # convert from left/right-basis to Legendre (P0, P1) basis
-    # elif basis == "legendre":
-    #     pass
-    # else:
-    #     raise NotImplementedError(f"Unknown basis {basis}")
-
-    # R.tensors[-1] = (R.tensors[-1].squeeze(-1) @ G)[...,None]
     return R
 
 def get_rhs_matrix_as_tt_2D(L):
     R = get_rhs_matrix_as_tt(L).squeeze()
     Rx = R.copy().expand_dims([1,3])
-    # Rx.tensors[-1] = Rx.tensors[-1].squeeze(axis=-2)
     Ry = R.copy().expand_dims([0,2])
-    # Ry.tensors[-1] = Ry.tensors[-1].squeeze(axis=-2)
     R = (Rx * Ry).reshape_mode_indices([[4,4]]*L + [[2,2]]).reapprox(rel_error=1e-15)
     R.tensors[-1] = R.tensors[-1].reshape([-1, 4, 1])
     return R
+
 
 def get_rhs_matrix_bpx_by_sum_2D(L):
     max_rank = 80
@@ -137,6 +126,19 @@ def get_laplace_bpx_2D_by_sum(L, max_rank=70):
         B.tensors[i] = U * 0.5
     return B
 
+
+def get_bpx_preconditioner_by_sum_2D(L):
+    max_rank = 64
+    C = tm.zeros([[4,4] for _ in range(L)])
+    for l in range(0,L+1):
+        P = get_level_mapping_matrix_as_tt(L, l)
+        PP = P @ P.copy().transpose()
+        PP = PP.copy().expand_dims([1,3]) * PP.copy().expand_dims([0,2])
+        PP.reshape_mode_indices([4,4])
+        C = (C + (0.5**l) * PP).reapprox(ranks_new=max_rank)
+    return C
+
+
 def get_level_mapping_matrix_as_tt(L,l):
     M = _get_refinement_tensor()
     A = np.zeros([2, 2, 1, 2])
@@ -158,16 +160,6 @@ def get_bpx_preconditioner_by_sum(L):
         C = (C + 2**(-l) * PP).reapprox(ranks_new=8)
     return C
 
-def get_bpx_preconditioner_by_sum_2D(L):
-    max_rank = 64
-    C = tm.zeros([[4,4] for _ in range(L)])
-    for l in range(0,L+1):
-        P = get_level_mapping_matrix_as_tt(L, l)
-        PP = P @ P.copy().transpose()
-        PP = PP.copy().expand_dims([1,3]) * PP.copy().expand_dims([0,2])
-        PP.reshape_mode_indices([4,4])
-        C = (C + (0.5**l) * PP).reapprox(ranks_new=max_rank)
-    return C
 
 def solve_PDE_1D(f, **solver_options):
     L = len(f) - 1

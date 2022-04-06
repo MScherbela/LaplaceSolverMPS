@@ -13,5 +13,4 @@ zz = hat_func(xx) * hat_func(yy)
 plt.close("all")
 plt.contour(zz, levels=20)
 plt.axis("equal")
-# plt.imshow(zz)
-# plt.show()
+

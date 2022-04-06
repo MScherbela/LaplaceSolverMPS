@@ -1,6 +1,3 @@
-import os
-
-print("Starting 2D_sweep_L.py")
 from laplace_mps.solver import solve_PDE_2D_with_preconditioner, solve_PDE_2D, build_2D_mass_matrix, get_L2_norm_2D
 import numpy as np
 from laplace_mps.utils import get_example_u_2D, get_example_f_2D, _get_gram_matrix_tt, _get_identy_as_tt, kronecker_prod_2D, get_example_grad_u_2D
@@ -80,7 +77,7 @@ if getpass.getuser() == 'scherbela':
     sys.exit(0)
 
 timestamp = datetime.datetime.now().strftime("%Y%m%d_%H%M")
-fname = f"/home/mscherbela/develop/LaplaceSolverMPS/outputs/2D_sweep_{timestamp}_nswp{nswap}_rank{max_rank}_eps{rel_error:.1e}_kickrank{kickrank}_.csv"
+fname = f"/home/mscherbela/develop/LaplaceSolverMPS/runs/2D_sweep_{timestamp}_nswp{nswap}_rank{max_rank}_eps{rel_error:.1e}_kickrank{kickrank}_.csv"
 
 df = pd.DataFrame(data)
 df.to_csv(fname, index=False)
@@ -92,7 +89,7 @@ import pandas as pd
 
 
 # fname = "/home/mscherbela/develop/LaplaceSolverMPS/outputs/vsc3_nswp150_rank600_eps1e-10_kickrank2.csv"
-fname = "/home/mscherbela/develop/LaplaceSolverMPS/outputs/run7_eps1e-13_nswp250_rank300.csv"
+fname = "/home/mscherbela/develop/LaplaceSolverMPS/runs/run7_eps1e-13_nswp250_rank300.csv"
 refnorm_L2 = (1/15 + 3 / (16*np.pi**4) - 3 / (16 * np.pi**2)) * (67 / 210)
 refnorm_H1 = (2144*np.pi**6 + 5926*np.pi**4 + 7245 - 9255*np.pi**2)/(25200*np.pi**4)
 
@@ -121,18 +118,20 @@ for ind_solver, solver in enumerate(["With BPX precond", "without BPX"]):
         axes[1].semilogy(df_filt.L, np.abs(df_filt.error_H1_norm)/refnorm_H1, marker='o', label=f"{solver}: H1", color=color_H1, ls=ls)
 
 axes[0].set_title("Norm of residual: $||u-u_{ref}||$")
-axes[1].set_title("Error of norm: $||u||^2 - ref$")
+axes[1].set_ylabel("$\\frac{\\left| |u|^2 - |u|^2_{ref} \\right|}{|u|^2_{ref}}$", fontsize=16)
+axes[1].set_title("Relative error of $|u|^2$")
 
 L_values = np.arange(df.L.min(), df.L.max()+1)
 axes[0].semilogy(L_values, 0.5 ** (2 * L_values), label='~$2^{-2L}$', color='lightgray', zorder=-1)
 axes[1].semilogy(L_values, 0.5 ** (2 * L_values), label='~$2^{-2L}$', color='lightgray', zorder=-1)
 for ax in axes:
     ax.grid(alpha=0.3)
-    ax.legend(loc='upper right')
     ax.axhline(eps, color='k', ls='--', label='Solver accuracy')
+    ax.legend(loc='upper right')
     ax.set_ylim([1e-14, None])
     ax.set_xlabel("L")
+    ax.set_xlim([None, 25])
 
-
+fig.tight_layout()
 plt.savefig(f"outputs/2D_sweep_L.pdf", bbox_inches='tight')
 

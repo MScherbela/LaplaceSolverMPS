@@ -2,7 +2,7 @@ import numpy as np
 import pandas as pd
 import glob
 
-input_dir = "/home/mscherbela/develop/LaplaceSolverMPS/outputs/run7_eps1e-13_nswp250_rank300"
+input_dir = "runs/run7_eps1e-13_nswp250_rank300"
 input_files = glob.glob(input_dir + "/*/TM.out")
 data_list = []
 for fname in input_files:
@@ -23,8 +23,10 @@ for fname in input_files:
                 data['bpx'] = is_bpx
                 data_list.append(data)
                 is_bpx = not is_bpx
+                if L > 20:
+                    break
 df = pd.DataFrame(data_list)
-output_fname =f"/home/mscherbela/develop/LaplaceSolverMPS/outputs/{input_dir.split('/')[-1]}.csv"
+output_fname =f"/home/mscherbela/develop/LaplaceSolverMPS/runs/{input_dir.split('/')[-1]}.csv"
 df.sort_values(['bpx', 'L'], inplace=True)
 df.to_csv(output_fname, index=False)
 
