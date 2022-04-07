@@ -101,7 +101,7 @@ def get_BPX_preconditioner_2D(L):
 
     C_factors = []
     for l in range(L):
-        rank = 2**(4+1)
+        rank = 2**(4+21)
         C_l = np.zeros([rank, 4, 4, rank])
         C_l[:rank//2, :, :, :rank//2] = Ub
         C_l[:rank//2, :, :, rank//2:] = (0.5**(l+1)) * Ub
@@ -186,5 +186,5 @@ def get_rhs_matrix_BPX_2D(L):
 if __name__ == '__main__':
     L = 8
     B = get_laplace_BPX_2D(L)
-    B.reapprox(ranks_new=400, rel_error=1e-15)
     print(B.shapes)
+    K0_hat = _get_K0_hat()

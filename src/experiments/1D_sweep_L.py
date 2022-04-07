@@ -40,14 +40,14 @@ for ind_solver, solver in enumerate([solve_PDE_1D_with_preconditioner, solve_PDE
 plt.close("all")
 fig, axes = plt.subplots(1,2, dpi=100, figsize=(14,7))
 for ind_solver, solver in enumerate(["with BPX precond.", "no precond."]):
-    color_L2 = ['red', 'salmon'][ind_solver]
-    color_H1 = ['C0', 'lightblue'][ind_solver]
+    color_L2 = ['red',  'C0'][ind_solver]
+    color_H1 = ['salmon', 'lightblue'][ind_solver]
     ls = ['-', '--'][ind_solver]
     color = f'C{ind_solver}'
     axes[0].semilogy(L_values, error_L2[ind_solver], marker='o', label=f"L2: {solver}", color=color_L2, ls=ls)
     axes[0].semilogy(L_values, error_H1[ind_solver], marker='o', label=f"H1: {solver}", color=color_H1, ls=ls)
 
-    axes[0].set_ylim([1e-16, None])
+
     axes[0].set_xlabel("L")
     axes[0].set_ylabel("norm of error")
 
@@ -62,6 +62,7 @@ axes[1].semilogy(L_values, 0.3 * 0.5 ** (2 * L_values), label='~$2^{-2L}$', colo
 for ax in axes:
     ax.grid(alpha=0.3)
     ax.legend(loc='upper right')
+    ax.set_ylim([1e-13, None])
 
 plt.savefig(f"outputs/1D_sweep_L.pdf", bbox_inches='tight')
 
